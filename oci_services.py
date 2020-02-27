@@ -50,6 +50,41 @@ def my_handler(type, value, tb):
 sys.excepthook = my_handler
 ##################################
 
+### Create Custom Retry Strategy ###
+####################################
+retry_strategy_via_constructor = oci.retry.RetryStrategyBuilder(
+   # Make up to 10 service calls
+   max_attempts_check=True,
+   max_attempts=10,
+
+   # Don't exceed a total of 600 seconds for all service calls
+   total_elapsed_time_check=True,
+   total_elapsed_time_seconds=600,
+
+   # Wait 60 seconds between attempts
+   retry_max_wait_between_calls_seconds=60,
+
+   # Use 2 seconds as the base number for doing sleep time calculations
+   retry_base_sleep_time_seconds=2,
+
+   # Retry on certain service errors:
+   #
+   #   - 5xx code received for the request
+   #   - Any 429 (this is signified by the empty array in the retry config)
+   #   - 400s where the code is QuotaExceeded or LimitExceeded
+   service_error_check=True,
+   service_error_retry_on_any_5xx=True,
+   service_error_retry_config={
+      400: ['QuotaExceeded', 'LimitExceeded'],
+      429: []
+   },
+
+   # Use exponential backoff and retry with full jitter, but on throttles use
+   # exponential backoff and retry with equal jitter
+   backoff_type=oci.retry.BACKOFF_FULL_JITTER_EQUAL_ON_THROTTLE_VALUE
+).get_retry_strategy()
+####################################
+
 logger.info("### START ###")
 logger.debug("Application name is: ", app_name)
 
@@ -160,20 +195,20 @@ class Tenancy(object):
 
       # get the identity client & tenancy objects
       identity_client = oci.identity.IdentityClient(config = {}, signer=signer )
-      tenancy = identity_client.get_tenancy( self.tenancy_id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY ).data
+      tenancy = identity_client.get_tenancy( self.tenancy_id, retry_strategy=retry_strategy_via_constructor ).data
 
       self.name = tenancy.name
       self.description = tenancy.description
       self.home_region = tenancy.home_region_key
 
       # get list of regions
-      self.regions = identity_client.list_region_subscriptions( self.tenancy_id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY ).data
+      self.regions = identity_client.list_region_subscriptions( self.tenancy_id, retry_strategy=retry_strategy_via_constructor ).data
       logger.debug(" --- List of regions is --- ")
       logger.debug(self.regions)
 
       # create compartments list
       self.compartments.append( oci.identity.models.Compartment(compartment_id=tenancy.id, name=f'{tenancy.name} (root)', description=tenancy.description, id=tenancy.id) )
-      self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY ).data
+      self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=retry_strategy_via_constructor ).data
       logger.debug(" --- List of compartments is --- ")
       logger.debug(self.compartments)
       
@@ -183,7 +218,7 @@ class Tenancy(object):
          identity_client = oci.identity.IdentityClient(config = {}, signer=signer)
          
          # add ADs for each region
-         self.availability_domains += identity_client.list_availability_domains(self.tenancy_id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+         self.availability_domains += identity_client.list_availability_domains(self.tenancy_id, retry_strategy=retry_strategy_via_constructor).data
 
       logger.debug(" --- List of ADs is --- ")
       logger.debug(self.availability_domains)
@@ -253,7 +288,7 @@ class Announcement(object):
    def __init__(self, config, signer):      
       # get list of announcements
       announcement_service = oci.announcements_service.AnnouncementClient( config={}, signer=signer )
-      self.announcements = announcement_service.list_announcements( config[ "tenancy" ], lifecycle_state=oci.announcements_service.models.AnnouncementSummary.LIFECYCLE_STATE_ACTIVE, sort_by="timeCreated", retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY ).data
+      self.announcements = announcement_service.list_announcements( config[ "tenancy" ], lifecycle_state=oci.announcements_service.models.AnnouncementSummary.LIFECYCLE_STATE_ACTIVE, sort_by="timeCreated", retry_strategy=retry_strategy_via_constructor ).data
 
       logger.debug(" --- List of Announcements is --- ")
       logger.debug(self.announcements)
@@ -287,13 +322,13 @@ class Limit(object):
          signer.region = region.region_name
          
          limits_client = oci.limits.LimitsClient(config={}, signer=signer)
-         services = limits_client.list_services( tenancy_id, sort_by="name", retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data      
+         services = limits_client.list_services( tenancy_id, sort_by="name", retry_strategy=retry_strategy_via_constructor).data      
 
          if services:
             # oci.limits.models.ServiceSummary
             for service in services:            
                # get the limits per service
-               limits = limits_client.list_limit_values(tenancy_id, service_name=service.name, sort_by="name", retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+               limits = limits_client.list_limit_values(tenancy_id, service_name=service.name, sort_by="name", retry_strategy=retry_strategy_via_constructor).data
                
                # initiate thread for service
                thread = Thread(target = self.get_info, args=(service, limits_client, limits, tenancy_id, tenancy, signer.region))
@@ -336,9 +371,9 @@ class Limit(object):
          usage = []
          
          if limit.scope_type == "AD":
-            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
          else:
-            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
 
          # oci.limits.models.ResourceAvailability
          if usage.used:
@@ -406,17 +441,17 @@ class Compute(object):
    ######################################################
    def get_info(self, c, compute_client, tenancy, region):
       # get all dedicated hosts
-      self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=retry_strategy_via_constructor).data
       # get all instances
-      self.instances += compute_client.list_instances(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.instances += compute_client.list_instances(c.id, retry_strategy=retry_strategy_via_constructor).data
       # get all volume attachments
-      self.vol_attachments += compute_client.list_volume_attachments(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.vol_attachments += compute_client.list_volume_attachments(c.id, retry_strategy=retry_strategy_via_constructor).data
             
       ads = tenancy.get_availability_domains(region.region_name)
       
       for ad in ads:
          # get all boot volume attachments
-         self.bv_attachments += compute_client.list_boot_volume_attachments( ad.name, c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY ).data
+         self.bv_attachments += compute_client.list_boot_volume_attachments( ad.name, c.id, retry_strategy=retry_strategy_via_constructor ).data
 
       
    ### upload Compute data to object storage ###
@@ -496,11 +531,11 @@ class BlockStorage(object):
    def get_info(self, c, block_storage_client, tenancy, region):     
       # get all block volumes
       ads = tenancy.get_availability_domains(region.region_name)
-      self.block_volumes += block_storage_client.list_volumes(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.block_volumes += block_storage_client.list_volumes(c.id, retry_strategy=retry_strategy_via_constructor).data
       
       for ad in ads:   
          # get all boot volumes from each AD         
-         self.boot_volumes += block_storage_client.list_boot_volumes(ad.name, c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+         self.boot_volumes += block_storage_client.list_boot_volumes(ad.name, c.id, retry_strategy=retry_strategy_via_constructor).data
          
    ### upload Block Storage data to object storage ###
    ###################################################      
@@ -575,25 +610,25 @@ class DBSystem(object):
    #######################################################
    def get_info(self, c, db_client, tenancy, region):  
       # get all db systems
-      self.db_systems += db_client.list_db_systems(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.db_systems += db_client.list_db_systems(c.id, retry_strategy=retry_strategy_via_constructor).data
 
       # get all db homes
-      db_homes = db_client.list_db_homes(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      db_homes = db_client.list_db_homes(c.id, retry_strategy=retry_strategy_via_constructor).data
       self.db_homes += db_homes
 
       for db_home in db_homes:
          # get all databases from each db home
-         self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+         self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
       
       # for db in databases:
       #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
       
       # get all autonomous exadata infra
-      self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=retry_strategy_via_constructor).data
       # get all autonomous container dbs
-      self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
       # get all autonomous dbs
-      self.autonomous_db += db_client.list_autonomous_databases(c.id, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY).data
+      self.autonomous_db += db_client.list_autonomous_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
 
    ### upload DB Systems data to object storage ###
    ################################################
