@@ -1,5 +1,6 @@
 import oci
 import time
+import datetime
 import requests
 import logging
 import socket
@@ -27,14 +28,14 @@ except Exception:
 
 ### LOGGER ###
 ##############
-# syslog = SysLogHandler(address=( 'logs.papertrailapp.com', 15167))
+syslog = SysLogHandler(address=( 'logs.papertrailapp.com', 15167))
 
 # Pass the two as env variables when runing the docker container
 logging_address = os.environ['LOGGING_ADDRESS']
 logging_port = os.environ['LOGGING_PORT']
 
 # log to CSA VM on TCP
-syslog = SysLogHandler(address=(logging_address, logging_port), socktype=socket.SOCK_STREAM)
+# syslog = SysLogHandler(address=(logging_address, logging_port), socktype=socket.SOCK_STREAM)
 format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s'
 formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
 syslog.setFormatter(formatter)
@@ -94,7 +95,6 @@ retry_strategy_via_constructor = oci.retry.RetryStrategyBuilder(
 ####################################
 
 logger.info("### START ###")
-logger.debug("Application name is: ", app_name)
 
 
 class OCIService(object):
@@ -128,6 +128,7 @@ class OCIService(object):
       compute = Compute( self.config, tenancy, self.signer)
       block_storage = BlockStorage(self.config, tenancy, self.signer)    
       db_system = DBSystem( self.config, tenancy, self.signer )
+      monitoring = Monitoring( self.config, tenancy, self.signer )  
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
@@ -137,6 +138,7 @@ class OCIService(object):
       thread4 = Thread(target = compute.create_csv)
       thread5 = Thread(target = block_storage.create_csv)
       thread6 = Thread(target = db_system.create_csv)
+      thread7 = Thread(target = monitoring.create_csv(self.config))
       
       logger.debug("Starting to write data to Object storage...")
       thread1.start()
@@ -145,12 +147,14 @@ class OCIService(object):
       thread4.start()
       thread5.start()
       thread6.start()
+      thread7.start()
       thread1.join()
       thread2.join()
       thread3.join()
       thread4.join()
       thread5.join()
       thread6.join()
+      thread7.join()
       
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
@@ -703,6 +707,87 @@ class DBSystem(object):
          data += f'{adb.id}, {adb.autonomous_container_database_id}, {adb.compartment_id}, {adb.cpu_core_count}, {adb.data_safe_status},  {adb.data_storage_size_in_tbs}, {adb.db_name}, {adb.db_version}, {adb.db_workload}, {adb.display_name}, {adb.is_auto_scaling_enabled}, {adb.is_dedicated}, {adb.is_free_tier}, {adb.lifecycle_state}, {adb.whitelisted_ips}, {report_no}'
 
       write_file( data, 'autonomous_db' )
+
+
+class Monitoring(object):
+   logger.info("Initiate Monitoring object...")
+    
+   compute_metrics_data = []
+   autonomous_metrics_data = []
+
+   def __init__(self, config, tenancy, signer):      
+      jobs = []
+      compute_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'MemoryUtilization', 'mean' ), ( 'DiskBytesRead', 'rate' ), ( 'DiskBytesWritten', 'rate' ), ( 'NetworksBytesIn', 'rate' ), ( 'NetworksBytesOut', 'rate' ) ]
+      autonomous_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'StorageUtilization', 'mean' ), ('Sessions', 'sum'), ('RunningStatements', 'sum'), ('FailedConnections', 'sum'), ('FailedLogons', 'sum'), ('CurrentLogons', 'sum'), ('QueuedStatements', 'sum'), ('TransactionCount', 'sum'), ('ExecuteCount', 'sum'), ('UserCalls', 'sum'), ('ParseCount', 'sum')]
+
+      # loop over each region in the tenancy
+      for region in tenancy.regions:
+         signer.region = region.region_name
+         monitor = oci.monitoring.MonitoringClient(config={}, signer=signer)
+         start_time = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%dT00:00:00.000Z')
+         end_time = datetime.datetime.today().strftime('%Y-%m-%dT00:00:00.000Z')   
+         
+         # loop over the metrics in the compute_metrics_list
+         for metric in compute_metrics_list:
+            metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_computeagent', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
+            
+            # initiate a thread for each metric
+            thread = Thread(target = self.get_metrics_compute, args=(region, config, monitor, metrics_summary))
+            jobs.append(thread)
+            
+         # loop over the metrics in the autonomous_metrics_list
+         for metric in autonomous_metrics_list:
+            metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_autonomous_database', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
+            
+            # initiate a thread for each metric
+            thread = Thread(target = self.get_metrics_autonomous, args=(region, config, monitor, metrics_summary))
+            jobs.append(thread)
+            
+            
+      # start all threads
+      for job in jobs:
+         job.start()
+         
+      # join threads so we don't quit until all threads have finished
+      for job in jobs:
+         job.join()
+         
+         
+   ### thread function - get all info about Compute Metrics ###
+   #######################################################
+   def get_metrics_compute(self, region, config, monitor, metrics_summary):  
+      self.compute_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
+   
+   ### thread function - get all info about Compute Metrics ###
+   #######################################################
+   def get_metrics_autonomous(self, region, config, monitor, metrics_summary):  
+       self.autonomous_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
+      
+   ### upload Metrics data to object storage ###
+   ################################################
+   def create_csv(self, config):
+      self.tenancy_id = config["tenancy"]
+      
+      # write data for Compute Metrics
+      data = 'metric_name, resource_id, timestamp, value, tenancy_id, report_no'
+
+      for metrics in self.compute_metrics_data:
+         for datapoint in metrics.aggregated_datapoints:
+            data += '\n'
+            data += f'{metrics.name}, {metrics.dimensions[ "resourceId" ]}, {str(datapoint.timestamp)}, {datapoint.value}, {self.tenancy_id}, {report_no}'
+
+      write_file( data, 'metrics_compute' )
+      
+      # write data for Autonomous DB Metrics
+      data = 'metric_name, resource_id, timestamp, value, tenancy_id, report_no'
+
+      for metrics in self.autonomous_metrics_data:
+         for datapoint in metrics.aggregated_datapoints:
+            data += '\n'
+            data += f'{metrics.name}, {metrics.dimensions[ "resourceId" ]}, {str(datapoint.timestamp)}, {datapoint.value}, {self.tenancy_id}, {report_no}'
+
+      write_file( data, 'metrics_autonomous_db' )
+
 
 ### Upload data to Object Storage ###
 #####################################
