@@ -725,7 +725,7 @@ class Monitoring(object):
    def __init__(self, config, tenancy, signer):      
       jobs = []
       compute_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'MemoryUtilization', 'mean' ), ( 'DiskBytesRead', 'rate' ), ( 'DiskBytesWritten', 'rate' ), ( 'NetworksBytesIn', 'rate' ), ( 'NetworksBytesOut', 'rate' ) ]
-      autonomous_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'StorageUtilization', 'mean' ), ('Sessions', 'sum'), ('RunningStatements', 'sum'), ('FailedConnections', 'sum'), ('FailedLogons', 'sum'), ('CurrentLogons', 'sum'), ('QueuedStatements', 'sum'), ('TransactionCount', 'sum'), ('ExecuteCount', 'sum'), ('UserCalls', 'sum'), ('ParseCount', 'sum')]
+      autonomous_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'StorageUtilization', 'mean' ), ('CurrentLogons', 'sum')]
 
       # loop over each region in the tenancy
       for region in tenancy.regions:
