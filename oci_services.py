@@ -28,14 +28,12 @@ except Exception:
 
 ### LOGGER ###
 ##############
-syslog = SysLogHandler(address=( 'logs.papertrailapp.com', 15167))
-
 # Pass the two as env variables when runing the docker container
 logging_address = os.environ['LOGGING_ADDRESS']
 logging_port = os.environ['LOGGING_PORT']
 
 # log to CSA VM on TCP
-# syslog = SysLogHandler(address=(logging_address, logging_port), socktype=socket.SOCK_STREAM)
+syslog = SysLogHandler(address=(logging_address, logging_port), socktype=socket.SOCK_STREAM)
 format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s'
 formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
 syslog.setFormatter(formatter)
