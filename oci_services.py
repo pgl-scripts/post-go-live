@@ -127,8 +127,9 @@ class OCIService(object):
       #limit = Limit( self.config, tenancy, self.signer )
       #compute = Compute( self.config, tenancy, self.signer)
       #block_storage = BlockStorage(self.config, tenancy, self.signer)    
-      db_system = DBSystem( self.config, tenancy, self.signer )
+      #db_system = DBSystem( self.config, tenancy, self.signer )
       #monitoring = Monitoring( self.config, tenancy, self.signer )  
+      images = Images( self.config, tenancy, self.signer)
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
@@ -137,8 +138,9 @@ class OCIService(object):
       #thread3 = Thread(target = limit.create_csv(self.config))
       #thread4 = Thread(target = compute.create_csv)
       #thread5 = Thread(target = block_storage.create_csv)
-      thread6 = Thread(target = db_system.create_csv(self.config))
+      #thread6 = Thread(target = db_system.create_csv(self.config))
       #thread7 = Thread(target = monitoring.create_csv(self.config))
+      thread8 = Thread(target = images.create_csv)
       
       logger.debug("Starting to write data to Object storage...")
       thread1.start()
@@ -146,15 +148,17 @@ class OCIService(object):
       #thread3.start()
       #thread4.start()
       #thread5.start()
-      thread6.start()
+      #thread6.start()
       #thread7.start()
+      thread8.start()
       thread1.join()
       #thread2.join()
       #thread3.join()
       #thread4.join()
       #thread5.join()
-      thread6.join()
+      #thread6.join()
       #thread7.join()
+      thread8.join()
       
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
@@ -410,6 +414,57 @@ class Limit(object):
 
       write_file( data, 'limit' )
 
+
+class Images(object):
+   logger.info("Initiate Images object...")
+   
+   images = []
+   
+   def __init__(self, config, tenancy, signer):
+      self.tenancy_id = config[ 'tenancy']
+      jobs = []
+      
+      # loop over all regions
+      for region in tenancy.regions:
+         signer.region = region.region_name
+         compute_client = oci.core.ComputeClient(config={}, signer=signer)
+         
+         # loop over all compartments in each region
+         for c in tenancy.get_compartments():
+            # initiate a thread for each compartment
+            thread = Thread(target = self.get_info, args=(c, compute_client, tenancy, region))
+            jobs.append(thread)
+      
+      # start threads
+      for job in jobs:
+         job.start()
+         
+      # join threads so we don't quit until all threads have finished
+      for job in jobs:
+         job.join()
+                  
+      logger.debug(" --- List of Images is --- ")
+      logger.debug(self.images)
+   
+   ### thread function - get all info about images ###
+   ######################################################
+   def get_info(self, c, compute_client, tenancy, region):
+      # get all images
+      self.images += compute_client.list_images(c.id, retry_strategy=retry_strategy_via_constructor).data
+   
+   ### upload images data to object storage ###
+   #############################################          
+   def create_csv(self):
+      # images
+      data = 'agent_features, base_image_id, compartment_id, display_name, id, launch_mode, boot_volume_type, firmware, network_type, operating_system, operating_system_version, size_in_mbs, time_created, report_no'
+
+      for image in self.images:
+         data += '\n'
+         data += f'{image.agent_features}, {image.base_image_id}, {image.compartment_id}, {image.display_name}, {image.id}, {image.launch_mode}, {image.launch_options.boot_volume_type}, {image.launch_options.firmware}, {image.launch_options.network_type}, {image.operating_system}, {image.operating_system_version}, {image.size_in_mbs}, {image.time_created}, {report_no}'
+
+      write_file( data, 'images' )
+ 
+ 
 class Compute(object):
    logger.info("Initiate Compute object...")
    
