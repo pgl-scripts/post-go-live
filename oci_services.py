@@ -123,38 +123,38 @@ class OCIService(object):
       
       logger.debug("Initiate Data Extract objects...")
       tenancy = Tenancy(self.config, self.signer)
-      announcement = Announcement(self.config, self.signer)
-      limit = Limit( self.config, tenancy, self.signer )
-      compute = Compute( self.config, tenancy, self.signer)
-      block_storage = BlockStorage(self.config, tenancy, self.signer)    
+      #announcement = Announcement(self.config, self.signer)
+      #limit = Limit( self.config, tenancy, self.signer )
+      #compute = Compute( self.config, tenancy, self.signer)
+      #block_storage = BlockStorage(self.config, tenancy, self.signer)    
       db_system = DBSystem( self.config, tenancy, self.signer )
-      monitoring = Monitoring( self.config, tenancy, self.signer )  
+      #monitoring = Monitoring( self.config, tenancy, self.signer )  
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
       thread1 = Thread(target = tenancy.create_csv)
-      thread2 = Thread(target = announcement.create_csv)
-      thread3 = Thread(target = limit.create_csv)
-      thread4 = Thread(target = compute.create_csv)
-      thread5 = Thread(target = block_storage.create_csv)
-      thread6 = Thread(target = db_system.create_csv)
-      thread7 = Thread(target = monitoring.create_csv(self.config))
+      #thread2 = Thread(target = announcement.create_csv(self.config))
+      #thread3 = Thread(target = limit.create_csv(self.config))
+      #thread4 = Thread(target = compute.create_csv)
+      #thread5 = Thread(target = block_storage.create_csv)
+      thread6 = Thread(target = db_system.create_csv(self.config))
+      #thread7 = Thread(target = monitoring.create_csv(self.config))
       
       logger.debug("Starting to write data to Object storage...")
       thread1.start()
-      thread2.start()
-      thread3.start()
-      thread4.start()
-      thread5.start()
+      #thread2.start()
+      #thread3.start()
+      #thread4.start()
+      #thread5.start()
       thread6.start()
-      thread7.start()
+      #thread7.start()
       thread1.join()
-      thread2.join()
-      thread3.join()
-      thread4.join()
-      thread5.join()
+      #thread2.join()
+      #thread3.join()
+      #thread4.join()
+      #thread5.join()
       thread6.join()
-      thread7.join()
+      #thread7.join()
       
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
@@ -309,14 +309,16 @@ class Announcement(object):
       
    ### upload Announcement data to object storage ###
    ##################################################
-   def create_csv(self):
-      data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_updated, type, report_no'
+   def create_csv(self, config):
+      self.tenancy_id = config["tenancy"]
+      
+      data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_updated, type, report_no, tenancy_id'
 
       for announcement in self.announcements.items:
          affected_regions = str(announcement.affected_regions).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
          services = str(announcement.services).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
          data += '\n'
-         data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_updated}, {announcement.type}, {report_no}'
+         data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_updated}, {announcement.type}, {report_no}, {self.tenancy_id}'
       
       write_file( data, 'announcement' )
 
@@ -398,11 +400,13 @@ class Limit(object):
          
    ### upload Limit data to object storage ###
    ###########################################
-   def create_csv(self):
-      data = 'region_name, service_name, service_description, limit_name, availability_domain, scope_type, value, used, available, report_no'
+   def create_csv(self, config):
+      self.tenancy_id = config["tenancy"]
+      
+      data = 'region_name, service_name, service_description, limit_name, availability_domain, scope_type, value, used, available, report_no, tenancy_id'
       for limit in self.limit_summary:
          data += '\n'
-         data += f"{limit['region_name']}, {limit['service_name']}, {limit['service_description']}, {limit['limit_name']}, {limit['availability_domain']}, {limit['scope_type']}, {limit['value']}, {limit[ 'used' ]}, {limit[ 'available' ]}, {report_no}"
+         data += f"{limit['region_name']}, {limit['service_name']}, {limit['service_description']}, {limit['limit_name']}, {limit['availability_domain']}, {limit['scope_type']}, {limit['value']}, {limit[ 'used' ]}, {limit[ 'available' ]}, {report_no}, {self.tenancy_id}"
 
       write_file( data, 'limit' )
 
@@ -644,13 +648,16 @@ class DBSystem(object):
 
    ### upload DB Systems data to object storage ###
    ################################################
-   def create_csv(self):
+   def create_csv(self, config):
+      self.tenancy_id = config["tenancy"]
+      
       # DB System
-      data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, report_no'
+      data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, report_no, region_id, tenancy_id'
 
       for db_system in self.db_systems:
+         region_id = db_system.id.split(".")[3]
          data += '\n'
-         data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {report_no}'
+         data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {report_no}, {region_id}, {self.tenancy_id}'
       
       write_file( data, 'db_system' )
 
