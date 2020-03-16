@@ -260,12 +260,12 @@ class Tenancy(object):
    ### upload tennancy data to object storage ###
    ##############################################
    def create_csv(self):
-      # Tenancy
-      data = 'tenancy_id, tenancy_name, description, home_region, report_no'
+      # Report
+      data = 'tenancy_id, report_no'
       data += '\n'
-      data += f'{self.tenancy_id}, {self.name}, {self.description}, {self.home_region}, {report_no}'
+      data += f'{self.tenancy_id}, {report_no}'
 
-      write_file( data, 'tenancy' )
+      write_file( data, 'report' )
 
       # Region
       data = 'tenancy_id, region_key, region_name, is_home_region, report_no'
@@ -314,14 +314,14 @@ class Announcement(object):
    def create_csv(self, config):
       self.tenancy_id = config["tenancy"]
       
-      data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_updated, type, report_no, tenancy_id'
+      data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_updated, type, tenancy_id, report_no'
 
       for announcement in self.announcements.items:
          affected_regions = str(announcement.affected_regions).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
          services = str(announcement.services).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
          data += '\n'
-         data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_updated}, {announcement.type}, {report_no}, {self.tenancy_id}'
-      
+         data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
+         
       write_file( data, 'announcement' )
 
 class Limit(object):
@@ -405,10 +405,10 @@ class Limit(object):
    def create_csv(self, config):
       self.tenancy_id = config["tenancy"]
       
-      data = 'region_name, service_name, service_description, limit_name, availability_domain, scope_type, value, used, available, report_no, tenancy_id'
+      data = 'region_name, service_name, service_description, limit_name, availability_domain, scope_type, value, used, available, tenancy_id, report_no'
       for limit in self.limit_summary:
          data += '\n'
-         data += f"{limit['region_name']}, {limit['service_name']}, {limit['service_description']}, {limit['limit_name']}, {limit['availability_domain']}, {limit['scope_type']}, {limit['value']}, {limit[ 'used' ]}, {limit[ 'available' ]}, {report_no}, {self.tenancy_id}"
+         data += f"{limit['region_name']}, {limit['service_name']}, {limit['service_description']}, {limit['limit_name']}, {limit['availability_domain']}, {limit['scope_type']}, {limit['value']}, {limit[ 'used' ]}, {limit[ 'available' ]}, {self.tenancy_id}, {report_no}"
 
       write_file( data, 'limit' )
 
@@ -460,7 +460,7 @@ class Images(object):
          data += '\n'
          data += f'{image.agent_features}, {image.base_image_id}, {image.compartment_id}, {image.display_name}, {image.id}, {image.launch_mode}, {image.launch_options.boot_volume_type}, {image.launch_options.firmware}, {image.launch_options.network_type}, {image.operating_system}, {image.operating_system_version}, {image.size_in_mbs}, {image.time_created}, {report_no}'
 
-      write_file( data, 'images' )
+      write_file( data, 'image' )
  
  
 class Compute(object):
@@ -705,12 +705,12 @@ class DBSystem(object):
       self.tenancy_id = config["tenancy"]
       
       # DB System
-      data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, report_no, region_id, tenancy_id'
+      data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, region_id, tenancy_id, report_no'
 
       for db_system in self.db_systems:
          region_id = db_system.id.split(".")[3]
          data += '\n'
-         data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {report_no}, {region_id}, {self.tenancy_id}'
+         data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {region_id}, {self.tenancy_id}, {report_no}'
       
       write_file( data, 'db_system' )
 
