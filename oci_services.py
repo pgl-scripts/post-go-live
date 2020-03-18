@@ -208,7 +208,7 @@ class Tenancy(object):
       self.tenancy_id = config["tenancy"]
 
       # get the identity client & tenancy objects
-      identity_client = oci.identity.IdentityClient(config = {}, signer=signer )
+      identity_client = oci.identity.IdentityClient(config=config, signer=signer )
       tenancy = identity_client.get_tenancy( self.tenancy_id, retry_strategy=retry_strategy_via_constructor ).data
 
       self.name = tenancy.name
@@ -229,7 +229,7 @@ class Tenancy(object):
       # loop over each region
       for region in self.regions:
          signer.region = region.region_name
-         identity_client = oci.identity.IdentityClient(config = {}, signer=signer)
+         identity_client = oci.identity.IdentityClient(config=config, signer=signer)
          
          # add ADs for each region
          self.availability_domains += identity_client.list_availability_domains(self.tenancy_id, retry_strategy=retry_strategy_via_constructor).data
@@ -301,7 +301,7 @@ class Announcement(object):
 
    def __init__(self, config, signer):      
       # get list of announcements
-      announcement_service = oci.announcements_service.AnnouncementClient( config={}, signer=signer )
+      announcement_service = oci.announcements_service.AnnouncementClient(config=config, signer=signer )
       self.announcements = announcement_service.list_announcements( config[ "tenancy" ], lifecycle_state=oci.announcements_service.models.AnnouncementSummary.LIFECYCLE_STATE_ACTIVE, sort_by="timeCreated", retry_strategy=retry_strategy_via_constructor ).data
 
       logger.debug(" --- List of Announcements is --- ")
@@ -337,7 +337,7 @@ class Limit(object):
       for region in tenancy.regions:
          signer.region = region.region_name
          
-         limits_client = oci.limits.LimitsClient(config={}, signer=signer)
+         limits_client = oci.limits.LimitsClient(config=config, signer=signer)
          services = limits_client.list_services( tenancy_id, sort_by="name", retry_strategy=retry_strategy_via_constructor).data      
 
          if services:
@@ -425,7 +425,7 @@ class Images(object):
       # loop over all regions
       for region in tenancy.regions:
          signer.region = region.region_name
-         compute_client = oci.core.ComputeClient(config={}, signer=signer)
+         compute_client = oci.core.ComputeClient(config=config, signer=signer)
          
          # loop over all compartments in each region
          for c in tenancy.get_compartments():
@@ -479,7 +479,7 @@ class Compute(object):
       # loop over all regions
       for region in tenancy.regions:
          signer.region = region.region_name
-         compute_client = oci.core.ComputeClient(config={}, signer=signer)
+         compute_client = oci.core.ComputeClient(config=config, signer=signer)
          
          # loop over all compartments in each region
          for c in tenancy.get_compartments():
@@ -572,7 +572,7 @@ class BlockStorage(object):
       # loop over all regions
       for region in tenancy.regions:
          signer.region = region.region_name
-         block_storage_client = oci.core.BlockstorageClient(config={}, signer=signer)
+         block_storage_client = oci.core.BlockstorageClient(config=config, signer=signer)
          
          # loop over all compartments from each region
          for c in tenancy.get_compartments():  
@@ -644,7 +644,7 @@ class DBSystem(object):
       # loop over all regions
       for region in tenancy.regions:
          signer.region = region.region_name
-         db_client = oci.database.DatabaseClient(config={}, signer=signer)
+         db_client = oci.database.DatabaseClient(config=config, signer=signer)
 
          # loop over all compartments from each region
          for c in tenancy.get_compartments():   
@@ -783,7 +783,7 @@ class Monitoring(object):
       # loop over each region in the tenancy
       for region in tenancy.regions:
          signer.region = region.region_name
-         monitor = oci.monitoring.MonitoringClient(config={}, signer=signer)
+         monitor = oci.monitoring.MonitoringClient(config=config, signer=signer)
          start_time = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%dT00:00:00.000Z')
          end_time = datetime.datetime.today().strftime('%Y-%m-%dT00:00:00.000Z')   
          
