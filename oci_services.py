@@ -562,7 +562,8 @@ class Compute(object):
       for vol in self.vol_attachments:
          data += '\n'
          data += f'{vol.id}, {vol.attachment_type}, {vol.availability_domain}, {vol.compartment_id}, {vol.device}, {vol.display_name}, {vol.instance_id}, {vol.is_pv_encryption_in_transit_enabled}, {vol.is_read_only}, {vol.is_shareable}, {vol.lifecycle_state}, {vol.volume_id}, {report_no}'
-         write_file( data, 'vol_attachment' )
+         
+      write_file( data, 'vol_attachment' )
 
 class BlockStorage(object):
    logger.info("Initiate Block Storage object...")
