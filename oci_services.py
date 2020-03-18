@@ -386,10 +386,13 @@ class Limit(object):
          # get usage per limit if available
          usage = []
          
-         if limit.scope_type == "AD":
-            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
-         else:
-            usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
+         try:
+            if limit.scope_type == "AD":
+               usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
+            else:
+               usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
+         except Exception:
+            logger.warning("This resource limit does not support API calls. Moving forward...")
 
          # oci.limits.models.ResourceAvailability
          if usage.used:
