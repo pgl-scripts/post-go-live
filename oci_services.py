@@ -343,13 +343,13 @@ class Announcement(object):
       try:
          self.tenancy_id = config["tenancy"]
          
-         data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_updated, type, tenancy_id, report_no'
+         data = 'affected_regions, announcement_type, announcement_id, reference_ticket_number, services, summary, time_created, time_one_title, time_one_value, time_two_title, time_two_value, time_updated, type, tenancy_id, report_no'
 
          for announcement in self.announcements.items:
             affected_regions = str(announcement.affected_regions).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             services = str(announcement.services).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             data += '\n'
-            data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
+            data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_created}, {announcement.time_one_title}, {announcement.time_one_value}, {announcement.time_two_title}, {announcement.time_two_value}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
             
          write_file( data, 'announcement' )
       except Exception as err:
@@ -855,12 +855,12 @@ class DBSystem(object):
          self.tenancy_id = config["tenancy"]
          
          # DB System
-         data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, region_id, tenancy_id, report_no'
+         data = 'id, availability_domain, cluster_name, compartment_id, cpu_core_count, data_storage_percentage, data_storage_size_in_gbs, database_edition, disk_redundancy, display_name, domain, hostname, last_patch_history_entry_id, lifecycle_state, node_count, reco_storage_size_in_gb, shape, sparse_diskgroup, version, region_id, tenancy_id, report_no'
 
          for db_system in self.db_systems:
             region_id = db_system.id.split(".")[3]
             data += '\n'
-            data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {region_id}, {self.tenancy_id}, {report_no}'
+            data += f'{db_system.id}, {db_system.availability_domain}, {db_system.cluster_name}, {db_system.compartment_id}, {db_system.cpu_core_count}, {db_system.data_storage_percentage}, {db_system.data_storage_size_in_gbs}, {db_system.database_edition}, {db_system.disk_redundancy}, {db_system.display_name}, {db_system.domain}, {db_system.hostname}, {db_system.last_patch_history_entry_id}, {db_system.lifecycle_state}, {db_system.node_count}, {db_system.reco_storage_size_in_gb}, {db_system.shape}, {db_system.sparse_diskgroup}, {db_system.version}, {region_id}, {self.tenancy_id}, {report_no}'
          
          write_file( data, 'db_system' )
 
