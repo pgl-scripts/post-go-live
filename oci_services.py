@@ -34,7 +34,6 @@ logging_port = os.environ['LOGGING_PORT']
 
 # log to splung VM over TCP
 syslog = SysLogHandler(address=(logging_address, int(logging_port)), socktype=socket.SOCK_STREAM)
-# syslog = SysLogHandler(address=( 'logs.papertrailapp.com', 15167))
 format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s\n'
 formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
 syslog.setFormatter(formatter)
@@ -112,10 +111,10 @@ class OCIService(object):
 
       # if intance pricipals - generate signer from token or config
       if( authentication == 'CONFIG' ):
-         logger.info("Generate Auth signer from config file.")
+         # logger.info("Generate Auth signer from config file.")
          self.generate_signer_from_config()
       else:
-         logger.info("Generate Auth signer from instance principal.")
+         # logger.info("Generate Auth signer from instance principal.")
          self.generate_signer_from_instance_principals()
       
       # time var for report number
@@ -123,9 +122,9 @@ class OCIService(object):
       report_no = time.strftime('%Y-%m-%dT%H:%M:%SZ', timetup).replace( ':', '-')
 
    def extract_data(self):
-      logger.info("Data Extract & Data Upload processes initated. Please wait...")
+      # logger.info("Data Extract & Data Upload processes initated. Please wait...")
       
-      logger.debug("Initiate Data Extract objects...")
+      # logger.debug("Initiate Data Extract objects...")
       tenancy = Tenancy(self.config, self.signer)
       announcement = Announcement(self.config, self.signer)
       limit = Limit( self.config, tenancy, self.signer )
@@ -134,7 +133,7 @@ class OCIService(object):
       db_system = DBSystem( self.config, tenancy, self.signer )
       monitoring = Monitoring( self.config, tenancy, self.signer )  
       images = Images( self.config, tenancy, self.signer)
-      logger.info("Data extraction finished.")
+      # logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
       thread1 = Thread(target = tenancy.create_csv)
@@ -146,7 +145,7 @@ class OCIService(object):
       thread7 = Thread(target = monitoring.create_csv(self.config))
       thread8 = Thread(target = images.create_csv)
       
-      logger.debug("Starting to write data to Object storage...")
+      # logger.debug("Starting to write data to Object storage...")
       thread1.start()
       thread2.start()
       thread3.start()
@@ -164,7 +163,7 @@ class OCIService(object):
       thread7.join()
       thread8.join()
       
-      logger.info("Data upload to Object Storage finished.")
+      # logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
 
    ### Generate Signer from config ###
@@ -193,7 +192,7 @@ class OCIService(object):
       self.config = {'region': self.signer.region, 'tenancy': self.signer.tenancy_id}
 
 class Tenancy(object):
-   logger.info("Initiate Tennancy object...")
+   # logger.info("Initiate Tennancy object...")
    
    tenancy_id = None
    name = None
@@ -219,14 +218,14 @@ class Tenancy(object):
 
          # get list of regions
          self.regions = identity_client.list_region_subscriptions( self.tenancy_id, retry_strategy=retry_strategy_via_constructor ).data
-         logger.debug(" --- List of regions is --- ")
-         logger.debug(self.regions)
+         # logger.debug(" --- List of regions is --- ")
+         # logger.debug(self.regions)
 
          # create compartments list
          self.compartments.append( oci.identity.models.Compartment(compartment_id=tenancy.id, name=f'{tenancy.name} (root)', description=tenancy.description, id=tenancy.id) )
          self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=retry_strategy_via_constructor ).data
-         logger.debug(" --- List of compartments is --- ")
-         logger.debug(self.compartments)
+         # logger.debug(" --- List of compartments is --- ")
+         # logger.debug(self.compartments)
          
          # loop over each region
          for region in self.regions:
@@ -236,10 +235,10 @@ class Tenancy(object):
             # add ADs for each region
             self.availability_domains += identity_client.list_availability_domains(self.tenancy_id, retry_strategy=retry_strategy_via_constructor).data
 
-         logger.debug(" --- List of ADs is --- ")
-         logger.debug(self.availability_domains)
+         # logger.debug(" --- List of ADs is --- ")
+         # logger.debug(self.availability_domains)
          
-         logger.info("Tenancy - DONE.")
+         # logger.info("Tenancy - DONE.")
          
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
@@ -310,7 +309,7 @@ class Tenancy(object):
          print_error("There was a problem creating a tenancy csv file... ", err)
 
 class Announcement(object):
-   logger.info("Initiate Announcement object...")
+   # logger.info("Initiate Announcement object...")
    
    annoucements = []
 
@@ -320,10 +319,10 @@ class Announcement(object):
          announcement_service = oci.announcements_service.AnnouncementClient(config, signer=signer )
          self.announcements = announcement_service.list_announcements( config[ "tenancy" ], lifecycle_state=oci.announcements_service.models.AnnouncementSummary.LIFECYCLE_STATE_ACTIVE, sort_by="timeCreated", retry_strategy=retry_strategy_via_constructor ).data
 
-         logger.debug(" --- List of Announcements is --- ")
-         logger.debug(self.announcements)
+         # logger.debug(" --- List of Announcements is --- ")
+         # logger.debug(self.announcements)
          
-         logger.info("Announcement - DONE.")
+         # logger.info("Announcement - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -354,7 +353,7 @@ class Announcement(object):
          
 
 class Limit(object):
-   logger.info("Initiate Limit object...")
+   # logger.info("Initiate Limit object...")
    
    limit_summary = []
 
@@ -387,10 +386,10 @@ class Limit(object):
          for job in jobs:
             job.join()
             
-         logger.debug(" --- List of Limits is --- ")
-         logger.debug(self.limit_summary)
+         # logger.debug(" --- List of Limits is --- ")
+         # logger.debug(self.limit_summary)
          
-         logger.info("Limit - DONE.")
+         # logger.info("Limit - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -470,7 +469,7 @@ class Limit(object):
 
 
 class Images(object):
-   logger.info("Initiate Images object...")
+   # logger.info("Initiate Images object...")
    
    images = []
    
@@ -498,8 +497,8 @@ class Images(object):
          for job in jobs:
             job.join()
                      
-         logger.debug(" --- List of Images is --- ")
-         logger.debug(self.images)
+         # logger.debug(" --- List of Images is --- ")
+         # logger.debug(self.images)
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -543,7 +542,7 @@ class Images(object):
  
  
 class Compute(object):
-   logger.info("Initiate Compute object...")
+   # logger.info("Initiate Compute object...")
    
    dedicated_hosts = []
    instances = []
@@ -575,16 +574,16 @@ class Compute(object):
          for job in jobs:
             job.join()
                      
-         logger.debug(" --- List of Dedicated Hosts is --- ")
-         logger.debug(self.dedicated_hosts)
-         logger.debug(" --- List of Instances is --- ")
-         logger.debug(self.instances)
-         logger.debug(" --- List of Volume Attachments is --- ")
-         logger.debug(self.vol_attachments)
-         logger.debug(" --- List of Boot Volume Attachments is --- ")
-         logger.debug(self.bv_attachments)
-                  
-         logger.info("Compute - DONE.")
+         # logger.debug(" --- List of Dedicated Hosts is --- ")
+         # logger.debug(self.dedicated_hosts)
+         # logger.debug(" --- List of Instances is --- ")
+         # logger.debug(self.instances)
+         # logger.debug(" --- List of Volume Attachments is --- ")
+         # logger.debug(self.vol_attachments)
+         # logger.debug(" --- List of Boot Volume Attachments is --- ")
+         # logger.debug(self.bv_attachments)
+         #          
+         # logger.info("Compute - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -664,7 +663,7 @@ class Compute(object):
          
 
 class BlockStorage(object):
-   logger.info("Initiate Block Storage object...")
+   # logger.info("Initiate Block Storage object...")
    
    boot_volumes = []
    block_volumes = []
@@ -692,12 +691,12 @@ class BlockStorage(object):
          for job in jobs:
             job.join()
                      
-         logger.debug(" --- List of Block Volumes is --- ")
-         logger.debug(self.block_volumes)
-         logger.debug(" --- List of Boot Volumes is --- ")
-         logger.debug(self.boot_volumes)
-         
-         logger.info("Block Storage - DONE.")
+         # logger.debug(" --- List of Block Volumes is --- ")
+         # logger.debug(self.block_volumes)
+         # logger.debug(" --- List of Boot Volumes is --- ")
+         # logger.debug(self.boot_volumes)
+         # 
+         # logger.info("Block Storage - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -757,7 +756,7 @@ class BlockStorage(object):
          
 
 class DBSystem(object):
-   logger.info("Initiate DB System object...")
+   # logger.info("Initiate DB System object...")
    
    db_systems = []
    db_homes = []
@@ -790,20 +789,20 @@ class DBSystem(object):
          for job in jobs:
             job.join()
             
-         logger.debug(" --- List of DB Systems is --- ")
-         logger.debug(self.db_systems)
-         logger.debug(" --- List of DB Homes is --- ")
-         logger.debug(self.db_homes)
-         logger.debug(" --- List of DBs is --- ")
-         logger.debug(self.databases)
-         logger.debug(" --- List of Autonomous Exadata Infra is --- ")
-         logger.debug(self.autonomous_exadata)
-         logger.debug(" --- List of Autonomous Container DB is --- ")
-         logger.debug(self.autonomous_cdb)
-         logger.debug(" --- List of Autonomous DB is --- ")
-         logger.debug(self.autonomous_db)
-            
-         logger.info("DB Systems - DONE.")
+         # logger.debug(" --- List of DB Systems is --- ")
+         # logger.debug(self.db_systems)
+         # logger.debug(" --- List of DB Homes is --- ")
+         # logger.debug(self.db_homes)
+         # logger.debug(" --- List of DBs is --- ")
+         # logger.debug(self.databases)
+         # logger.debug(" --- List of Autonomous Exadata Infra is --- ")
+         # logger.debug(self.autonomous_exadata)
+         # logger.debug(" --- List of Autonomous Container DB is --- ")
+         # logger.debug(self.autonomous_cdb)
+         # logger.debug(" --- List of Autonomous DB is --- ")
+         # logger.debug(self.autonomous_db)
+         #    
+         # logger.info("DB Systems - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -922,7 +921,7 @@ class DBSystem(object):
 
 
 class Monitoring(object):
-   logger.info("Initiate Monitoring object...")
+   # logger.info("Initiate Monitoring object...")
     
    compute_metrics_data = []
    autonomous_metrics_data = []
@@ -1038,6 +1037,6 @@ def write_file( strdata, filename ):
 
    try:
       resp = requests.put( f'{par_url}{filename}_{report_no}.csv', data=strdata.encode('utf-8'))
-      logger.info(f'Uploading file: {par_url}{filename}_{report_no}.csv to object storage.')
+      # logger.info(f'Uploading file: {par_url}{filename}_{report_no}.csv to object storage.')
    except Exception as err:
       print_error(f"Failed to upload file : {filename}_{report_no} - ", err)
