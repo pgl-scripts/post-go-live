@@ -32,7 +32,7 @@ except Exception:
 logging_address = os.environ['LOGGING_ADDRESS']
 logging_port = os.environ['LOGGING_PORT']
 
-# log to CSA VM on TCP
+# log to splung VM over TCP
 syslog = SysLogHandler(address=(logging_address, int(logging_port)), socktype=socket.SOCK_STREAM)
 # syslog = SysLogHandler(address=( 'logs.papertrailapp.com', 15167))
 format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s\n'
@@ -186,13 +186,8 @@ class OCIService(object):
       try:
          # get signer from instance principals token
          self.signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-      except Exception:
-         logger.error("*********************************************************************")
-         logger.error("* Error obtaining instance principals certificate.                  *")
-         logger.error("* Aboting.                                                          *")
-         logger.error("*********************************************************************")
-         logger.error("")
-         raise SystemExit
+      except Exception as err:
+         print_error("Error while generating signer from instance principals...", err)
 
       # generate config info from signer
       self.config = {'region': self.signer.region, 'tenancy': self.signer.tenancy_id}
@@ -252,7 +247,7 @@ class Tenancy(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting TENANCY info...", err)
       
@@ -335,7 +330,7 @@ class Announcement(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting ANNOUNCEMENTS info...", err)
       
@@ -402,7 +397,7 @@ class Limit(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting LIMITS info...", err)
       
@@ -447,8 +442,11 @@ class Limit(object):
                logger.warning("Redirecting to a cached resource...")
             elif err.status == 429:
                print_error("There were way too many API Requests made...", err)
+            elif err.status == 404:
+               # ignore this error in here - authentication problem in here
+               continue
             else:
-               raise
+               print_error("There was an error...", err)
          except Exception as err:
             print_error("Error while getting RESOURCE AVAILABILITY info...", err)
 
@@ -508,7 +506,7 @@ class Images(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting IMAGES info...", err)
    
@@ -524,7 +522,7 @@ class Images(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting IMAGES info...", err)
    
@@ -593,7 +591,7 @@ class Compute(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting COMPUTE info...", err)
       
@@ -619,7 +617,7 @@ class Compute(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting COMPUTE info...", err)
       
@@ -706,7 +704,7 @@ class BlockStorage(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting BLOCK STORAGE info...", err)
          
@@ -728,7 +726,7 @@ class BlockStorage(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting BLOCK STORAGE info...", err)
          
@@ -812,7 +810,7 @@ class DBSystem(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting DB SYSTEMS info...", err)
                
@@ -846,7 +844,7 @@ class DBSystem(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting DB SYSTEMS info...", err)
 
@@ -972,7 +970,7 @@ class Monitoring(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting MONITORING info...", err)
          
@@ -985,7 +983,7 @@ class Monitoring(object):
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting COMPUTE METRICS info...", err)
 
@@ -1000,7 +998,7 @@ class Monitoring(object):
          elif err.status == 429:
             print_error("There were way too many API Requests made...", err)
          else:
-            raise
+            print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting AUTONOMOUS METRICS info...", err)
 
