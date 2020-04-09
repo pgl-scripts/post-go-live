@@ -765,6 +765,8 @@ class DBSystem(object):
    autonomous_exadata = []
    autonomous_cdb = []
    autonomous_db = []
+   db_system_patch_history = []
+   db_home_patch_history = []
 
    def __init__(self, config, tenancy, signer):
       jobs = []
@@ -819,6 +821,10 @@ class DBSystem(object):
       try:
          # get all db systems
          self.db_systems += db_client.list_db_systems(c.id, retry_strategy=retry_strategy_via_constructor).data
+         
+         # get all patch history entries
+         for db_system in self.db_systems:
+            self.db_system_patch_history += db_client.list_db_system_patch_history_entries(db_system_id=db_system.id, retry_strategy=retry_strategy_via_constructor).data
 
          # get all db homes
          db_homes = db_client.list_db_homes(c.id, retry_strategy=retry_strategy_via_constructor).data
@@ -827,6 +833,8 @@ class DBSystem(object):
          for db_home in db_homes:
             # get all databases from each db home
             self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
+            # get all patch history entries
+            self.db_home_patch_history += db_client.list_db_home_patch_history_entries(db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
          
          # for db in databases:
          #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
@@ -916,6 +924,26 @@ class DBSystem(object):
             data += f'{adb.id}, {adb.autonomous_container_database_id}, {adb.compartment_id}, {adb.cpu_core_count}, {adb.data_safe_status},  {adb.data_storage_size_in_tbs}, {adb.db_name}, {adb.db_version}, {adb.db_workload}, {adb.display_name}, {adb.is_auto_scaling_enabled}, {adb.is_dedicated}, {adb.is_free_tier}, {adb.lifecycle_state}, {adb.whitelisted_ips}, {report_no}'
 
          write_file( data, 'autonomous_db' )
+         
+         # DB Home Patch History
+         data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started'
+
+         for db_home_patch in self.db_home_patch_history:
+            data += '\n'
+            data += f'{db_home_patch.action}, {db_home_patch.id}, {db_home_patch.lifecycle_details}, {db_home_patch.lifecycle_state}, {db_home_patch.patch_id}, {db_home_patch.time_ended}, {db_home_patch.time_started},'
+
+         write_file( data, 'db_home_patch_history' )
+         
+         # DB System Patch History
+         data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started'
+
+         for db_sys_patch in self.db_system_patch_history:
+            data += '\n'
+            data += f'{db_sys_patch.action}, {db_sys_patch.id}, {db_sys_patch.lifecycle_details}, {db_sys_patch.lifecycle_state}, {db_sys_patch.patch_id}, {db_sys_patch.time_ended}, {db_sys_patch.time_started},'
+
+         write_file( data, 'db_sys_patch_history' )
+         
+            
       except Exception as err:
          print_error("There was a problem creating a db system csv file... ", err)
 
