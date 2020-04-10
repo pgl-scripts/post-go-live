@@ -28,21 +28,19 @@ except Exception:
 
 ### LOGGER ###
 ##############
-# Pass the two as env variables when runing the docker container
-logging_address = os.environ['LOGGING_ADDRESS']
-logging_port = os.environ['LOGGING_PORT']
 
-# log to splung VM over TCP
-syslog = SysLogHandler(address=(logging_address, int(logging_port)), socktype=socket.SOCK_STREAM)
-format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s\n'
-formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
-syslog.setFormatter(formatter)
+# log to file
+log_file = "/scripts/oci_services.log"
 
-syslog.append_nul = False
+logging.basicConfig(filename=log_file,
+                            format=f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s',
+                            datefmt='%b %d %H:%M:%S',
+                            level=logging.INFO)
 
 logger = logging.getLogger()
-logger.addHandler(syslog)
-logger.setLevel(logging.INFO)
+# stop getting all the unnecessary INFO messages from oci
+logging.getLogger('oci').setLevel(logging.ERROR)
+
 ##############
 
 ### Uncaught Exception Handler ###
@@ -111,10 +109,10 @@ class OCIService(object):
 
       # if intance pricipals - generate signer from token or config
       if( authentication == 'CONFIG' ):
-         # logger.info("Generate Auth signer from config file.")
+         logger.info("Generate Auth signer from config file.")
          self.generate_signer_from_config()
       else:
-         # logger.info("Generate Auth signer from instance principal.")
+         logger.info("Generate Auth signer from instance principal.")
          self.generate_signer_from_instance_principals()
       
       # time var for report number
@@ -122,7 +120,7 @@ class OCIService(object):
       report_no = time.strftime('%Y-%m-%dT%H:%M:%SZ', timetup).replace( ':', '-')
 
    def extract_data(self):
-      # logger.info("Data Extract & Data Upload processes initated. Please wait...")
+      logger.info("Data Extract & Data Upload processes initated. Please wait...")
       
       # logger.debug("Initiate Data Extract objects...")
       tenancy = Tenancy(self.config, self.signer)
@@ -133,7 +131,7 @@ class OCIService(object):
       db_system = DBSystem( self.config, tenancy, self.signer )
       monitoring = Monitoring( self.config, tenancy, self.signer )  
       images = Images( self.config, tenancy, self.signer)
-      # logger.info("Data extraction finished.")
+      logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
       thread1 = Thread(target = tenancy.create_csv)
@@ -163,7 +161,7 @@ class OCIService(object):
       thread7.join()
       thread8.join()
       
-      # logger.info("Data upload to Object Storage finished.")
+      logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
 
    ### Generate Signer from config ###
@@ -192,7 +190,7 @@ class OCIService(object):
       self.config = {'region': self.signer.region, 'tenancy': self.signer.tenancy_id}
 
 class Tenancy(object):
-   # logger.info("Initiate Tennancy object...")
+   logger.info("Initiate Tennancy object...")
    
    tenancy_id = None
    name = None
@@ -238,7 +236,7 @@ class Tenancy(object):
          # logger.debug(" --- List of ADs is --- ")
          # logger.debug(self.availability_domains)
          
-         # logger.info("Tenancy - DONE.")
+         logger.info("Tenancy - DONE.")
          
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
@@ -309,7 +307,7 @@ class Tenancy(object):
          print_error("There was a problem creating a tenancy csv file... ", err)
 
 class Announcement(object):
-   # logger.info("Initiate Announcement object...")
+   logger.info("Initiate Announcement object...")
    
    annoucements = []
 
@@ -322,7 +320,7 @@ class Announcement(object):
          # logger.debug(" --- List of Announcements is --- ")
          # logger.debug(self.announcements)
          
-         # logger.info("Announcement - DONE.")
+         logger.info("Announcement - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -353,7 +351,7 @@ class Announcement(object):
          
 
 class Limit(object):
-   # logger.info("Initiate Limit object...")
+   logger.info("Initiate Limit object...")
    
    limit_summary = []
 
@@ -389,7 +387,7 @@ class Limit(object):
          # logger.debug(" --- List of Limits is --- ")
          # logger.debug(self.limit_summary)
          
-         # logger.info("Limit - DONE.")
+         logger.info("Limit - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -469,7 +467,7 @@ class Limit(object):
 
 
 class Images(object):
-   # logger.info("Initiate Images object...")
+   logger.info("Initiate Images object...")
    
    images = []
    
@@ -499,6 +497,8 @@ class Images(object):
                      
          # logger.debug(" --- List of Images is --- ")
          # logger.debug(self.images)
+         logger.info("Images - DONE.")
+         
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -542,7 +542,7 @@ class Images(object):
  
  
 class Compute(object):
-   # logger.info("Initiate Compute object...")
+   logger.info("Initiate Compute object...")
    
    dedicated_hosts = []
    instances = []
@@ -583,7 +583,7 @@ class Compute(object):
          # logger.debug(" --- List of Boot Volume Attachments is --- ")
          # logger.debug(self.bv_attachments)
          #          
-         # logger.info("Compute - DONE.")
+         logger.info("Compute - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -663,7 +663,7 @@ class Compute(object):
          
 
 class BlockStorage(object):
-   # logger.info("Initiate Block Storage object...")
+   logger.info("Initiate Block Storage object...")
    
    boot_volumes = []
    block_volumes = []
@@ -696,7 +696,7 @@ class BlockStorage(object):
          # logger.debug(" --- List of Boot Volumes is --- ")
          # logger.debug(self.boot_volumes)
          # 
-         # logger.info("Block Storage - DONE.")
+         logger.info("Block Storage - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -756,7 +756,7 @@ class BlockStorage(object):
          
 
 class DBSystem(object):
-   # logger.info("Initiate DB System object...")
+   logger.info("Initiate DB System object...")
    
    db_systems = []
    db_homes = []
@@ -804,7 +804,7 @@ class DBSystem(object):
          # logger.debug(" --- List of Autonomous DB is --- ")
          # logger.debug(self.autonomous_db)
          #    
-         # logger.info("DB Systems - DONE.")
+         logger.info("DB Systems - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -949,7 +949,7 @@ class DBSystem(object):
 
 
 class Monitoring(object):
-   # logger.info("Initiate Monitoring object...")
+   logger.info("Initiate Monitoring object...")
     
    compute_metrics_data = []
    autonomous_metrics_data = []
@@ -991,6 +991,7 @@ class Monitoring(object):
          for job in jobs:
             job.join()
             
+         logger.info("Monitoring - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
             logger.warning("Redirecting to a cached resource...")
@@ -1065,6 +1066,6 @@ def write_file( strdata, filename ):
 
    try:
       resp = requests.put( f'{par_url}{filename}_{report_no}.csv', data=strdata.encode('utf-8'))
-      # logger.info(f'Uploading file: {par_url}{filename}_{report_no}.csv to object storage.')
+      logger.info(f'Uploading file: {filename}_{report_no}.csv to object storage.')
    except Exception as err:
       print_error(f"Failed to upload file : {filename}_{report_no} - ", err)
