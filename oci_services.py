@@ -342,9 +342,9 @@ class Announcement(object):
          for announcement in self.announcements.items:
             affected_regions = str(announcement.affected_regions).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             services = str(announcement.services).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
-            services = str(announcement.summary).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
+            summary = str(announcement.summary).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             data += '\n'
-            data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_created}, {announcement.time_one_title}, {announcement.time_one_value}, {announcement.time_two_title}, {announcement.time_two_value}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
+            data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {summary}, {announcement.time_created}, {announcement.time_one_title}, {announcement.time_one_value}, {announcement.time_two_title}, {announcement.time_two_value}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
             
          write_file( data, 'announcement' )
       except Exception as err:
