@@ -253,7 +253,7 @@ class Tenancy(object):
    ### return the list of ACTIVE compartments ###
    ##############################################
    def get_compartments(self):
-      return [c for c in self.compartments if ( c.lifecycle_state == 'ACTIVE' and c.name != 'ManagedCompartmentForPaaS' and c.name != 'OCI_Scripts' )]
+      return [c for c in self.compartments if (c.lifecycle_state == 'ACTIVE')]
 
    ### return the list of ADs for a specific region ###
    ####################################################
@@ -344,6 +344,7 @@ class Announcement(object):
          for announcement in self.announcements.items:
             affected_regions = str(announcement.affected_regions).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             services = str(announcement.services).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
+            services = str(announcement.summary).strip( '[]' ).replace( ',', '/' ).replace( "'",'' )
             data += '\n'
             data += f'{affected_regions}, {announcement.announcement_type}, {announcement.id}, {announcement.reference_ticket_number}, {services}, {announcement.summary}, {announcement.time_created}, {announcement.time_one_title}, {announcement.time_one_value}, {announcement.time_two_title}, {announcement.time_two_value}, {announcement.time_updated}, {announcement.type}, {self.tenancy_id}, {report_no}'
             
