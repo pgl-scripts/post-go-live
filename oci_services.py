@@ -29,17 +29,53 @@ except Exception:
 ### LOGGER ###
 ##############
 
-# log to file
-log_file = "/scripts/oci_services.log"
+# Pass the env variables when runing the docker container
+logging_target = os.environ['TARGET']
+logging_level = os.environ['LOGGING_LEVEL']
 
-logging.basicConfig(filename=log_file,
-                            format=f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s',
-                            datefmt='%b %d %H:%M:%S',
-                            level=logging.INFO)
+# keep a different oci log level because there are too many messages from there
+if logging_level:
+   if logging_level == "DEBUG":
+      log_lvl_oci = logging.DEBUG
+   elif logging_level == "INFO":
+      log_lvl_oci = logging.ERROR 
+   elif logging_level == "wARNING":
+      log_lvl_oci = logging.ERROR 
+   elif logging_level == "ERROR":
+      log_lvl_oci = logging.ERROR 
 
-logger = logging.getLogger()
+# logging type
+if logging_target:
+   if logging_target == "SYSLOG":
+      # get from env vars
+      logging_address = os.environ['LOGGING_ADDRESS']
+      logging_port = os.environ['LOGGING_PORT']
+      
+      if logging_address and logging_port:
+         # log to this address
+         syslog = SysLogHandler(address=(logging_address, int(logging_port)))
+         format = f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s'
+         formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+         syslog.setFormatter(formatter)
+
+         logger = logging.getLogger()
+         logger.addHandler(syslog)
+         logger.setLevel(logging_level)
+   elif logging_target == "FILE":
+      # log to file
+      log_file = "/logs/oci_services.log"
+
+      logging.basicConfig(filename=log_file,
+                                 format=f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s',
+                                 datefmt='%b %d %H:%M:%S',
+                                 level=logging_level)
+
+      logger = logging.getLogger()
+   else:
+      raise SystemExit('Unable to establish logging module.')
+
 # stop getting all the unnecessary INFO messages from oci
-logging.getLogger('oci').setLevel(logging.ERROR)
+logging.getLogger('oci').setLevel(log_lvl_oci)
 
 ##############
 
