@@ -63,7 +63,7 @@ if logging_target:
          logger.setLevel(logging_level)
    elif logging_target == "FILE":
       # log to file
-      log_file = "/logs/oci_services.log"
+      log_file = f"/logs/{app_name}.log"
 
       logging.basicConfig(filename=log_file,
                                  format=f'%(asctime)s {app_name}: %(levelname)s : %(lineno)d : %(message)s',
