@@ -140,9 +140,12 @@ class OCIService(object):
       global report_no
       global par_url
       
-      # source the config file
-      self.config = oci.config.from_file( "/.oci/config", "DEFAULT")
-      par_url = self.config[ 'par' ]   
+      try:
+         # source the config file
+         self.config = oci.config.from_file( "/.oci/config", "DEFAULT")
+         par_url = self.config[ 'par' ]   
+      except Exception as err:
+         print_error("Error while sourcing the config file...", err)
 
       # if intance pricipals - generate signer from token or config
       if( authentication == 'CONFIG' ):
@@ -204,15 +207,18 @@ class OCIService(object):
    ### Generate Signer from config ###
    ###################################
    def generate_signer_from_config(self):
-      # create signer from config for authentication
-      self.signer = oci.signer.Signer(
-         tenancy=self.config["tenancy"],
-         user=self.config["user"],
-         fingerprint=self.config["fingerprint"],
-         private_key_file_location=self.config.get("key_file"),
-         #pass_phrase=oci.config.get_config_value_or_default(self.config, "pass_phrase"),
-         #private_key_content=self.config.get("key_content")
-      )
+      try:
+         # create signer from config for authentication
+         self.signer = oci.signer.Signer(
+            tenancy=self.config["tenancy"],
+            user=self.config["user"],
+            fingerprint=self.config["fingerprint"],
+            private_key_file_location=self.config.get("key_file"),
+            #pass_phrase=oci.config.get_config_value_or_default(self.config, "pass_phrase"),
+            #private_key_content=self.config.get("key_content")
+         )
+      except Exception as err:
+         print_error("Error while generating signer from config file...", err)
 
    ### Generate Signer from instance_principals ###
    ################################################
