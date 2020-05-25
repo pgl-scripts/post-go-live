@@ -36,7 +36,7 @@ logging_level = os.environ['LOGGING_LEVEL']
 # keep a different oci log level because there are too many messages from there
 if logging_level:
    if logging_level == "DEBUG":
-      log_lvl_oci = logging.DEBUG
+      log_lvl_oci = logging.INFO
    elif logging_level == "INFO":
       log_lvl_oci = logging.ERROR 
    elif logging_level == "wARNING":
@@ -162,45 +162,36 @@ class OCIService(object):
    def extract_data(self):
       logger.info("Data Extract & Data Upload processes initated. Please wait...")
       
-      # logger.debug("Initiate Data Extract objects...")
+      logger.debug("Initiate Data Extract objects...")
       tenancy = Tenancy(self.config, self.signer)
       announcement = Announcement(self.config, self.signer)
-      limit = Limit( self.config, tenancy, self.signer )
-      compute = Compute( self.config, tenancy, self.signer)
-      block_storage = BlockStorage(self.config, tenancy, self.signer)    
-      db_system = DBSystem( self.config, tenancy, self.signer )
-      monitoring = Monitoring( self.config, tenancy, self.signer )  
-      images = Images( self.config, tenancy, self.signer)
+      
+      for region in tenancy.regions:
+         self.config['region'] = region.region_name
+         self.signer.region = region.region_name
+         
+         logger.info("Region is: ")
+         logger.info(self.signer.region)
+      
+         limit = Limit( self.config, tenancy, self.signer )
+         compute = Compute( self.config, tenancy, self.signer)
+         block_storage = BlockStorage(self.config, tenancy, self.signer)    
+         db_system = DBSystem( self.config, tenancy, self.signer )
+         monitoring = Monitoring( self.config, tenancy, self.signer )  
+         images = Images( self.config, tenancy, self.signer)
+      
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
-      thread1 = Thread(target = tenancy.create_csv)
-      thread2 = Thread(target = announcement.create_csv(self.config))
-      thread3 = Thread(target = limit.create_csv(self.config))
-      thread4 = Thread(target = compute.create_csv)
-      thread5 = Thread(target = block_storage.create_csv)
-      thread6 = Thread(target = db_system.create_csv(self.config))
-      thread7 = Thread(target = monitoring.create_csv(self.config))
-      thread8 = Thread(target = images.create_csv)
-      
-      # logger.debug("Starting to write data to Object storage...")
-      thread1.start()
-      thread2.start()
-      thread3.start()
-      thread4.start()
-      thread5.start()
-      thread6.start()
-      thread7.start()
-      thread8.start()
-      thread1.join()
-      thread2.join()
-      thread3.join()
-      thread4.join()
-      thread5.join()
-      thread6.join()
-      thread7.join()
-      thread8.join()
-      
+      tenancy.create_csv()
+      announcement.create_csv(self.config)
+      limit.create_csv(self.config)
+      compute.create_csv()
+      block_storage.create_csv()
+      db_system.create_csv(self.config)
+      monitoring.create_csv(self.config)
+      images.create_csv()
+            
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
 
@@ -259,14 +250,17 @@ class Tenancy(object):
 
          # get list of regions
          self.regions = identity_client.list_region_subscriptions( self.tenancy_id, retry_strategy=retry_strategy_via_constructor ).data
-         # logger.debug(" --- List of regions is --- ")
-         # logger.debug(self.regions)
+         logger.debug(" --- List of regions is --- ")
+         logger.debug(self.regions)
 
          # create compartments list
          self.compartments.append( oci.identity.models.Compartment(compartment_id=tenancy.id, name=f'{tenancy.name} (root)', description=tenancy.description, id=tenancy.id) )
-         self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=retry_strategy_via_constructor ).data
-         # logger.debug(" --- List of compartments is --- ")
-         # logger.debug(self.compartments)
+         #self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=retry_strategy_via_constructor ).data
+         
+         ## TRY WITH ANY
+         self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ANY", retry_strategy=retry_strategy_via_constructor ).data
+         logger.debug(" --- List of compartments is --- ")
+         logger.debug(self.compartments)
          
          # loop over each region
          for region in self.regions:
@@ -276,8 +270,8 @@ class Tenancy(object):
             # add ADs for each region
             self.availability_domains += identity_client.list_availability_domains(self.tenancy_id, retry_strategy=retry_strategy_via_constructor).data
 
-         # logger.debug(" --- List of ADs is --- ")
-         # logger.debug(self.availability_domains)
+         logger.debug(" --- List of ADs is --- ")
+         logger.debug(self.availability_domains)
          
          logger.info("Tenancy - DONE.")
          
@@ -360,8 +354,8 @@ class Announcement(object):
          announcement_service = oci.announcements_service.AnnouncementClient(config, signer=signer )
          self.announcements = announcement_service.list_announcements( config[ "tenancy" ], lifecycle_state=oci.announcements_service.models.AnnouncementSummary.LIFECYCLE_STATE_ACTIVE, sort_by="timeCreated", retry_strategy=retry_strategy_via_constructor ).data
 
-         # logger.debug(" --- List of Announcements is --- ")
-         # logger.debug(self.announcements)
+         #logger.debug(" --- List of Announcements is --- ")
+         #logger.debug(self.announcements)
          
          logger.info("Announcement - DONE.")
       except oci.exceptions.ServiceError as err:
@@ -401,35 +395,67 @@ class Limit(object):
 
    def __init__(self, config, tenancy, signer):
       tenancy_id = config[ "tenancy" ]
-      jobs = []
       try: 
-         # loop over all regions
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            
-            limits_client = oci.limits.LimitsClient(config, signer=signer)
-            services = limits_client.list_services( tenancy_id, sort_by="name", retry_strategy=retry_strategy_via_constructor).data      
+         limits_client = oci.limits.LimitsClient(config, signer=signer)
+         services = limits_client.list_services( tenancy_id, sort_by="name", retry_strategy=retry_strategy_via_constructor).data      
 
-            if services:
-               # oci.limits.models.ServiceSummary
-               for service in services:            
-                  # get the limits per service
-                  limits = limits_client.list_limit_values(tenancy_id, service_name=service.name, sort_by="name", retry_strategy=retry_strategy_via_constructor).data
+         if services:
+            # oci.limits.models.ServiceSummary
+            for service in services:            
+               # get the limits per service
+               limits = limits_client.list_limit_values(tenancy_id, service_name=service.name, sort_by="name", retry_strategy=retry_strategy_via_constructor).data
+               
+               for limit in limits:
+                  val = {
+                        'service_name': str(service.name),
+                        'service_description': str(service.description),
+                        'limit_name': str(limit.name),
+                        'availability_domain': ("" if limit.availability_domain is None else str(limit.availability_domain)),
+                        'scope_type': str(limit.scope_type),
+                        'value': str(limit.value),
+                        'used': "",
+                        'available': "",
+                        'region_name': str(signer.region)
+               }
+
+               # if not limit, continue, don't calculate limit = 0
+               if limit.value == 0:
+                  continue
+
+               try:
+                  # get usage per limit if available
+                  usage = []
                   
-                  # initiate thread for service
-                  thread = Thread(target = self.get_info, args=(service, limits_client, limits, tenancy_id, tenancy, signer.region))
-                  jobs.append(thread)
+                  if limit.scope_type == "AD":
+                     usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
+                  else:
+                     usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
+                     
+                  # oci.limits.models.ResourceAvailability
+                  if usage.used:
+                     val['used'] = str(usage.used)
+                     
+                  if usage.available:
+                     val['available'] = str(usage.available)
+                     
+               except oci.exceptions.ServiceError as err:
+                  if err.status == 304:
+                     logger.warning("Redirecting to a cached resource...")
+                  elif err.status == 429:
+                     print_error("There were way too many API Requests made...", err)
+                  elif err.status == 404:
+                     # ignore this error in here - authentication problem in here
+                     continue
+                  else:
+                     print_error("There was an error...", err)
+               except Exception as err:
+                  print_error("Error while getting RESOURCE AVAILABILITY info...", err)
+
+               self.limit_summary.append(val)
+                  
             
-         # start threads   
-         for job in jobs:
-            job.start()
-            
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
-            
-         # logger.debug(" --- List of Limits is --- ")
-         # logger.debug(self.limit_summary)
+         #logger.debug(" --- List of Limits is --- ")
+         #logger.debug(self.limit_summary)
          
          logger.info("Limit - DONE.")
       except oci.exceptions.ServiceError as err:
@@ -442,56 +468,6 @@ class Limit(object):
       except Exception as err:
          print_error("Error while getting LIMITS info...", err)
       
-   ### thread function - get all limits ###
-   ########################################
-   def get_info(self, service, limits_client, limits, tenancy_id, tenancy, region):
-      for limit in limits:
-         val = {
-                  'service_name': str(service.name),
-                  'service_description': str(service.description),
-                  'limit_name': str(limit.name),
-                  'availability_domain': ("" if limit.availability_domain is None else str(limit.availability_domain)),
-                  'scope_type': str(limit.scope_type),
-                  'value': str(limit.value),
-                  'used': "",
-                  'available': "",
-                  'region_name': str(region)
-         }
-
-         # if not limit, continue, don't calculate limit = 0
-         if limit.value == 0:
-            continue
-
-         try:
-            # get usage per limit if available
-            usage = []
-            
-            if limit.scope_type == "AD":
-               usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
-            else:
-               usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
-               
-            # oci.limits.models.ResourceAvailability
-            if usage.used:
-               val['used'] = str(usage.used)
-               
-            if usage.available:
-               val['available'] = str(usage.available)
-               
-         except oci.exceptions.ServiceError as err:
-            if err.status == 304:
-               logger.warning("Redirecting to a cached resource...")
-            elif err.status == 429:
-               print_error("There were way too many API Requests made...", err)
-            elif err.status == 404:
-               # ignore this error in here - authentication problem in here
-               continue
-            else:
-               print_error("There was an error...", err)
-         except Exception as err:
-            print_error("Error while getting RESOURCE AVAILABILITY info...", err)
-
-         self.limit_summary.append(val)
          
    ### upload Limit data to object storage ###
    ###########################################
@@ -509,38 +485,33 @@ class Limit(object):
          print_error("There was a problem creating the limit csv file... ", err)
 
 
-
 class Images(object):
    logger.info("Initiate Images object...")
    
    images = []
    
    def __init__(self, config, tenancy, signer):
-      self.tenancy_id = config[ 'tenancy']
-      jobs = []
       
       try:
-         # loop over all regions
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            compute_client = oci.core.ComputeClient(config, signer=signer)
-            
-            # loop over all compartments in each region
-            for c in tenancy.get_compartments():
-               # initiate a thread for each compartment
-               thread = Thread(target = self.get_info, args=(c, compute_client, tenancy, region))
-               jobs.append(thread)
-         
-         # start threads
-         for job in jobs:
-            job.start()
-            
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
+         compute_client = oci.core.ComputeClient(config, signer=signer)
                      
-         # logger.debug(" --- List of Images is --- ")
-         # logger.debug(self.images)
+         # loop over all compartments
+         for c in tenancy.get_compartments():
+            try:
+               # get all images
+               self.images += compute_client.list_images(c.id, retry_strategy=retry_strategy_via_constructor).data
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               elif err.status == 429:
+                  print_error("There were way too many API Requests made...", err)
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting IMAGES info...", err)
+                           
+         #logger.debug(" --- List of Images is --- ")
+         #logger.debug(self.images)
          logger.info("Images - DONE.")
          
       except oci.exceptions.ServiceError as err:
@@ -552,22 +523,7 @@ class Images(object):
             print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting IMAGES info...", err)
-   
-   ### thread function - get all info about images ###
-   ######################################################
-   def get_info(self, c, compute_client, tenancy, region):
-      try:
-         # get all images
-         self.images += compute_client.list_images(c.id, retry_strategy=retry_strategy_via_constructor).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         elif err.status == 429:
-            print_error("There were way too many API Requests made...", err)
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting IMAGES info...", err)
+
    
    ### upload images data to object storage ###
    #############################################          
@@ -596,36 +552,45 @@ class Compute(object):
 
    def __init__(self, config, tenancy, signer):
       self.tenancy_id = config[ 'tenancy']
-      jobs = []
       
       try:
-         # loop over all regions
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            compute_client = oci.core.ComputeClient(config, signer=signer)
+         compute_client = oci.core.ComputeClient(config, signer=signer)
+                  
+         # loop over all compartments
+         for c in tenancy.get_compartments():
+            try:
+               # get all dedicated hosts
+               self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=retry_strategy_via_constructor).data
+               # get all instances
+               self.instances += compute_client.list_instances(c.id, retry_strategy=retry_strategy_via_constructor).data
+               # get all volume attachments
+               self.vol_attachments += compute_client.list_volume_attachments(c.id, retry_strategy=retry_strategy_via_constructor).data
             
-            # loop over all compartments in each region
-            for c in tenancy.get_compartments():
-               # initiate a thread for each compartment
-               thread = Thread(target = self.get_info, args=(c, compute_client, tenancy, region))
-               jobs.append(thread)
-         
-         # start threads
-         for job in jobs:
-            job.start()
-            
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
+               ads = tenancy.get_availability_domains(signer.region)
                      
-         # logger.debug(" --- List of Dedicated Hosts is --- ")
-         # logger.debug(self.dedicated_hosts)
-         # logger.debug(" --- List of Instances is --- ")
-         # logger.debug(self.instances)
-         # logger.debug(" --- List of Volume Attachments is --- ")
-         # logger.debug(self.vol_attachments)
-         # logger.debug(" --- List of Boot Volume Attachments is --- ")
-         # logger.debug(self.bv_attachments)
+               for ad in ads:
+                  # get all boot volume attachments
+                  self.bv_attachments += compute_client.list_boot_volume_attachments( ad.name, c.id, retry_strategy=retry_strategy_via_constructor ).data
+                  
+            
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               elif err.status == 429:
+                  print_error("There were way too many API Requests made...", err)
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting COMPUTE info...", err)
+                     
+         #logger.debug(" --- List of Dedicated Hosts is --- ")
+         #logger.debug(self.dedicated_hosts)
+         #logger.debug(" --- List of Instances is --- ")
+         #logger.debug(self.instances)
+         #logger.debug(" --- List of Volume Attachments is --- ")
+         #logger.debug(self.vol_attachments)
+         #logger.debug(" --- List of Boot Volume Attachments is --- ")
+         #logger.debug(self.bv_attachments)
          #          
          logger.info("Compute - DONE.")
       except oci.exceptions.ServiceError as err:
@@ -638,32 +603,7 @@ class Compute(object):
       except Exception as err:
          print_error("Error while getting COMPUTE info...", err)
       
-   ### thread function - get all info about instances ###
-   ######################################################
-   def get_info(self, c, compute_client, tenancy, region):
-      try:
-         # get all dedicated hosts
-         self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=retry_strategy_via_constructor).data
-         # get all instances
-         self.instances += compute_client.list_instances(c.id, retry_strategy=retry_strategy_via_constructor).data
-         # get all volume attachments
-         self.vol_attachments += compute_client.list_volume_attachments(c.id, retry_strategy=retry_strategy_via_constructor).data
-               
-         ads = tenancy.get_availability_domains(region.region_name)
-         
-         for ad in ads:
-            # get all boot volume attachments
-            self.bv_attachments += compute_client.list_boot_volume_attachments( ad.name, c.id, retry_strategy=retry_strategy_via_constructor ).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         elif err.status == 429:
-            print_error("There were way too many API Requests made...", err)
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting COMPUTE info...", err)
-      
+   
    ### upload Compute data to object storage ###
    #############################################          
    def create_csv(self):
@@ -713,32 +653,35 @@ class BlockStorage(object):
    block_volumes = []
 
    def __init__(self, config, tenancy, signer):
-      jobs = []
       
       try:
-         # loop over all regions
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            block_storage_client = oci.core.BlockstorageClient(config, signer=signer)
-            
-            # loop over all compartments from each region
-            for c in tenancy.get_compartments():  
-               # initiate a thread for each compartment
-               thread = Thread(target = self.get_info, args=(c, block_storage_client, tenancy, region))
-               jobs.append(thread)
+         block_storage_client = oci.core.BlockstorageClient(config, signer=signer)
                   
-         # start all threads
-         for job in jobs:
-            job.start()
-            
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
+         # loop over all compartments
+         for c in tenancy.get_compartments():  
+            try:
+               # get all block volumes
+               self.block_volumes += block_storage_client.list_volumes(c.id, retry_strategy=retry_strategy_via_constructor).data
+               
+               ads = tenancy.get_availability_domains(signer.region)
+               for ad in ads:   
+                  # get all boot volumes from each AD         
+                  self.boot_volumes += block_storage_client.list_boot_volumes(ad.name, c.id, retry_strategy=retry_strategy_via_constructor).data
+               
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               elif err.status == 429:
+                  print_error("There were way too many API Requests made...", err)
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting BLOCK STORAGE info...", err)
                      
-         # logger.debug(" --- List of Block Volumes is --- ")
-         # logger.debug(self.block_volumes)
-         # logger.debug(" --- List of Boot Volumes is --- ")
-         # logger.debug(self.boot_volumes)
+         #logger.debug(" --- List of Block Volumes is --- ")
+         #logger.debug(self.block_volumes)
+         #logger.debug(" --- List of Boot Volumes is --- ")
+         #logger.debug(self.boot_volumes)
          # 
          logger.info("Block Storage - DONE.")
       except oci.exceptions.ServiceError as err:
@@ -750,30 +693,8 @@ class BlockStorage(object):
             print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting BLOCK STORAGE info...", err)
-         
-      
-   ### thread function - get all info about block storage ###
-   ##########################################################
-   def get_info(self, c, block_storage_client, tenancy, region):     
-      try:
-         # get all block volumes
-         ads = tenancy.get_availability_domains(region.region_name)
-         self.block_volumes += block_storage_client.list_volumes(c.id, retry_strategy=retry_strategy_via_constructor).data
-         
-         for ad in ads:   
-            # get all boot volumes from each AD         
-            self.boot_volumes += block_storage_client.list_boot_volumes(ad.name, c.id, retry_strategy=retry_strategy_via_constructor).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         elif err.status == 429:
-            print_error("There were way too many API Requests made...", err)
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting BLOCK STORAGE info...", err)
-         
-         
+
+    
    ### upload Block Storage data to object storage ###
    ###################################################      
    def create_csv(self):
@@ -813,40 +734,63 @@ class DBSystem(object):
    db_home_patch_history = []
 
    def __init__(self, config, tenancy, signer):
-      jobs = []
       
       try:
-         # loop over all regions
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            db_client = oci.database.DatabaseClient(config, signer=signer)
+         db_client = oci.database.DatabaseClient(config, signer=signer)
+         # loop over all compartments
+         for c in tenancy.get_compartments():   
+            try:
+               # get all db systems
+               self.db_systems += db_client.list_db_systems(c.id, retry_strategy=retry_strategy_via_constructor).data
+               
+               # get all patch history entries
+               
+               for db_system in self.db_systems:
+                  region_id = db_system.id.split(".")[3]
+                  if region_id == signer.region:
+                     self.db_system_patch_history += db_client.list_db_system_patch_history_entries(db_system_id=db_system.id, retry_strategy=retry_strategy_via_constructor).data
 
-            # loop over all compartments from each region
-            for c in tenancy.get_compartments():   
-               # initiate a thread for each compartment
-               thread = Thread(target = self.get_info, args=(c, db_client, tenancy, region))
-               jobs.append(thread)
+               # get all db homes
+               db_homes = db_client.list_db_homes(c.id, retry_strategy=retry_strategy_via_constructor).data
+               self.db_homes += db_homes
+
+               for db_home in db_homes:
+                  # get all databases from each db home
+                  self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
+                  # get all patch history entries
+                  self.db_home_patch_history += db_client.list_db_home_patch_history_entries(db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
+               
+               # for db in databases:
+               #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
+               
+               # get all autonomous exadata infra
+               self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=retry_strategy_via_constructor).data
+               # get all autonomous container dbs
+               self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
+               # get all autonomous dbs
+               self.autonomous_db += db_client.list_autonomous_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               elif err.status == 429:
+                  print_error("There were way too many API Requests made...", err)
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting DB SYSTEMS info...", err)
             
-         # start all threads
-         for job in jobs:
-            job.start()
-            
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
-            
-         # logger.debug(" --- List of DB Systems is --- ")
-         # logger.debug(self.db_systems)
-         # logger.debug(" --- List of DB Homes is --- ")
-         # logger.debug(self.db_homes)
-         # logger.debug(" --- List of DBs is --- ")
-         # logger.debug(self.databases)
-         # logger.debug(" --- List of Autonomous Exadata Infra is --- ")
-         # logger.debug(self.autonomous_exadata)
-         # logger.debug(" --- List of Autonomous Container DB is --- ")
-         # logger.debug(self.autonomous_cdb)
-         # logger.debug(" --- List of Autonomous DB is --- ")
-         # logger.debug(self.autonomous_db)
+         #logger.debug(" --- List of DB Systems is --- ")
+         #logger.debug(self.db_systems)
+         #logger.debug(" --- List of DB Homes is --- ")
+         #logger.debug(self.db_homes)
+         #logger.debug(" --- List of DBs is --- ")
+         #logger.debug(self.databases)
+         #logger.debug(" --- List of Autonomous Exadata Infra is --- ")
+         #logger.debug(self.autonomous_exadata)
+         #logger.debug(" --- List of Autonomous Container DB is --- ")
+         #logger.debug(self.autonomous_cdb)
+         #logger.debug(" --- List of Autonomous DB is --- ")
+         #logger.debug(self.autonomous_db)
          #    
          logger.info("DB Systems - DONE.")
       except oci.exceptions.ServiceError as err:
@@ -858,46 +802,7 @@ class DBSystem(object):
             print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting DB SYSTEMS info...", err)
-               
-   ### thread function - get all info about DB Systems ###
-   #######################################################
-   def get_info(self, c, db_client, tenancy, region):  
-      try:
-         # get all db systems
-         self.db_systems += db_client.list_db_systems(c.id, retry_strategy=retry_strategy_via_constructor).data
-         
-         # get all patch history entries
-         for db_system in self.db_systems:
-            self.db_system_patch_history += db_client.list_db_system_patch_history_entries(db_system_id=db_system.id, retry_strategy=retry_strategy_via_constructor).data
-
-         # get all db homes
-         db_homes = db_client.list_db_homes(c.id, retry_strategy=retry_strategy_via_constructor).data
-         self.db_homes += db_homes
-
-         for db_home in db_homes:
-            # get all databases from each db home
-            self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
-            # get all patch history entries
-            self.db_home_patch_history += db_client.list_db_home_patch_history_entries(db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
-         
-         # for db in databases:
-         #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
-         
-         # get all autonomous exadata infra
-         self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=retry_strategy_via_constructor).data
-         # get all autonomous container dbs
-         self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
-         # get all autonomous dbs
-         self.autonomous_db += db_client.list_autonomous_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         elif err.status == 429:
-            print_error("There were way too many API Requests made...", err)
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting DB SYSTEMS info...", err)
+    
 
    ### upload DB Systems data to object storage ###
    ################################################
@@ -1003,38 +908,41 @@ class Monitoring(object):
       compute_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'MemoryUtilization', 'mean' ), ( 'DiskBytesRead', 'rate' ), ( 'DiskBytesWritten', 'rate' ), ( 'NetworksBytesIn', 'rate' ), ( 'NetworksBytesOut', 'rate' ) ]
       autonomous_metrics_list = [ ( 'CpuUtilization', 'mean' ),  ( 'StorageUtilization', 'mean' ), ('CurrentLogons', 'sum')]
       try:
-         # loop over each region in the tenancy
-         for region in tenancy.regions:
-            signer.region = region.region_name
-            monitor = oci.monitoring.MonitoringClient(config, signer=signer)
-            start_time = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%dT00:00:00.000Z')
-            end_time = datetime.datetime.today().strftime('%Y-%m-%dT00:00:00.000Z')   
+         monitor = oci.monitoring.MonitoringClient(config, signer=signer)
+                  
+         start_time = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%dT00:00:00.000Z')
+         end_time = datetime.datetime.today().strftime('%Y-%m-%dT00:00:00.000Z')   
             
-            # loop over the metrics in the compute_metrics_list
-            for metric in compute_metrics_list:
-               metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_computeagent', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
-               
-               # initiate a thread for each metric
-               thread = Thread(target = self.get_metrics_compute, args=(region, config, monitor, metrics_summary))
-               jobs.append(thread)
-               
-            # loop over the metrics in the autonomous_metrics_list
-            for metric in autonomous_metrics_list:
-               metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_autonomous_database', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
-               
-               # initiate a thread for each metric
-               thread = Thread(target = self.get_metrics_autonomous, args=(region, config, monitor, metrics_summary))
-               jobs.append(thread)
-               
-               
-         # start all threads
-         for job in jobs:
-            job.start()
+         # loop over the metrics in the compute_metrics_list
+         for metric in compute_metrics_list:
+            metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_computeagent', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
             
-         # join threads so we don't quit until all threads have finished
-         for job in jobs:
-            job.join()
+            try:
+               self.compute_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting COMPUTE METRICS info...", err)
+               
+         # loop over the metrics in the autonomous_metrics_list
+         for metric in autonomous_metrics_list:
+            metrics_summary = oci.monitoring.models.SummarizeMetricsDataDetails( end_time=end_time, namespace='oci_autonomous_database', query=f'{metric[0]}[1m].{metric[1]}()', start_time=start_time)
             
+            try:
+               self.autonomous_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
+            except oci.exceptions.ServiceError as err:
+               if err.status == 304:
+                  logger.warning("Redirecting to a cached resource...")
+               elif err.status == 429:
+                  print_error("There were way too many API Requests made...", err)
+               else:
+                  print_error("There was an error...", err)
+            except Exception as err:
+               print_error("Error while getting AUTONOMOUS METRICS info...", err)
+                           
          logger.info("Monitoring - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
@@ -1045,34 +953,7 @@ class Monitoring(object):
             print_error("There was an error...", err)
       except Exception as err:
          print_error("Error while getting MONITORING info...", err)
-         
-   ### thread function - get all info about Compute Metrics ###
-   #######################################################
-   def get_metrics_compute(self, region, config, monitor, metrics_summary):  
-      try:
-         self.compute_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting COMPUTE METRICS info...", err)
 
-   ### thread function - get all info about Compute Metrics ###
-   #######################################################
-   def get_metrics_autonomous(self, region, config, monitor, metrics_summary):  
-      try:
-          self.autonomous_metrics_data += monitor.summarize_metrics_data( config[ "tenancy" ], metrics_summary, compartment_id_in_subtree=True, retry_strategy=retry_strategy_via_constructor).data
-      except oci.exceptions.ServiceError as err:
-         if err.status == 304:
-            logger.warning("Redirecting to a cached resource...")
-         elif err.status == 429:
-            print_error("There were way too many API Requests made...", err)
-         else:
-            print_error("There was an error...", err)
-      except Exception as err:
-         print_error("Error while getting AUTONOMOUS METRICS info...", err)
 
    ### upload Metrics data to object storage ###
    ################################################
