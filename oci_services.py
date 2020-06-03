@@ -327,8 +327,9 @@ class Tenancy(object):
          data = 'compartment_id, name, description, tenancy_id, report_no'      
 
          for compartment in self.compartments:
+            compartment_desc = str(compartment.description).replace(',', ' -')
             data += '\n'
-            data += f'{compartment.id}, {compartment.name}, {compartment.description}, {compartment.compartment_id}, {report_no}'
+            data += f'{compartment.id}, {compartment.name}, {compartment_desc}, {compartment.compartment_id}, {report_no}'
 
          write_file( data, 'compartment' )
 
