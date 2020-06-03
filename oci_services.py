@@ -254,7 +254,7 @@ class Tenancy(object):
          logger.debug(self.regions)
 
          # create compartments list
-         self.compartments.append( oci.identity.models.Compartment(compartment_id=tenancy.id, name=f'{tenancy.name} (root)', description=tenancy.description, id=tenancy.id) )
+         self.compartments.append( oci.identity.models.Compartment(compartment_id=tenancy.id, name=f'{tenancy.name} (root)', description=tenancy.description, id=tenancy.id, lifecycle_state = "ACTIVE") )
          #self.compartments += identity_client.list_compartments( self.tenancy_id, compartment_id_in_subtree=True, access_level="ACCESSIBLE", retry_strategy=retry_strategy_via_constructor ).data
          
          ## TRY WITH ANY
