@@ -879,8 +879,9 @@ class DBSystem(object):
          data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
 
          for db_home_patch in self.db_home_patch_history:
+            db_home_lifecycle_details = str(db_home_patch.lifecycle_details).replace(',', ' -')
             data += '\n'
-            data += f'{db_home_patch.action}, {db_home_patch.id}, {db_home_patch.lifecycle_details}, {db_home_patch.lifecycle_state}, {db_home_patch.patch_id}, {db_home_patch.time_ended}, {db_home_patch.time_started}, {report_no}'
+            data += f'{db_home_patch.action}, {db_home_patch.id}, {db_home_lifecycle_details}, {db_home_patch.lifecycle_state}, {db_home_patch.patch_id}, {db_home_patch.time_ended}, {db_home_patch.time_started}, {report_no}'
 
          write_file( data, 'db_home_patch_history' )
          
@@ -888,8 +889,9 @@ class DBSystem(object):
          data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
 
          for db_sys_patch in self.db_system_patch_history:
+            db_sys_lifecycle_details = str(db_sys_patch.lifecycle_details).replace(',', ' -')
             data += '\n'
-            data += f'{db_sys_patch.action}, {db_sys_patch.id}, {db_sys_patch.lifecycle_details}, {db_sys_patch.lifecycle_state}, {db_sys_patch.patch_id}, {db_sys_patch.time_ended}, {db_sys_patch.time_started}, {report_no}'
+            data += f'{db_sys_patch.action}, {db_sys_patch.id}, {db_sys_lifecycle_details}, {db_sys_patch.lifecycle_state}, {db_sys_patch.patch_id}, {db_sys_patch.time_ended}, {db_sys_patch.time_started}, {report_no}'
 
          write_file( data, 'db_sys_patch_history' )
          
