@@ -173,24 +173,24 @@ class OCIService(object):
          logger.info("Region is: ")
          logger.info(self.signer.region)
       
-         limit = Limit( self.config, tenancy, self.signer )
-         compute = Compute( self.config, tenancy, self.signer)
-         block_storage = BlockStorage(self.config, tenancy, self.signer)    
+         #limit = Limit( self.config, tenancy, self.signer )
+         #compute = Compute( self.config, tenancy, self.signer)
+         #block_storage = BlockStorage(self.config, tenancy, self.signer)    
          db_system = DBSystem( self.config, tenancy, self.signer )
-         monitoring = Monitoring( self.config, tenancy, self.signer )  
-         images = Images( self.config, tenancy, self.signer)
+         #monitoring = Monitoring( self.config, tenancy, self.signer )  
+         #images = Images( self.config, tenancy, self.signer)
       
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
       tenancy.create_csv()
       announcement.create_csv(self.config)
-      limit.create_csv(self.config)
-      compute.create_csv()
-      block_storage.create_csv()
+      #limit.create_csv(self.config)
+      #compute.create_csv()
+      #block_storage.create_csv()
       db_system.create_csv(self.config)
-      monitoring.create_csv(self.config)
-      images.create_csv()
+      #monitoring.create_csv(self.config)
+      #images.create_csv()
             
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
@@ -731,8 +731,8 @@ class DBSystem(object):
    autonomous_exadata = []
    autonomous_cdb = []
    autonomous_db = []
-   db_system_patch_history = []
-   db_home_patch_history = []
+   db_system_patch_history = {}
+   db_home_patch_history = {}
 
    def __init__(self, config, tenancy, signer):
       
@@ -749,7 +749,11 @@ class DBSystem(object):
                for db_system in self.db_systems:
                   region_id = db_system.id.split(".")[3]
                   if region_id == signer.region:
-                     self.db_system_patch_history += db_client.list_db_system_patch_history_entries(db_system_id=db_system.id, retry_strategy=retry_strategy_via_constructor).data
+                     list_db_system = []
+                     list_db_system = db_client.list_db_system_patch_history_entries(db_system_id=db_system.id, retry_strategy=retry_strategy_via_constructor).data
+                                          
+                     if list_db_system:
+                        self.db_system_patch_history.update({db_system.id: list_db_system})
 
                # get all db homes
                db_homes = db_client.list_db_homes(c.id, retry_strategy=retry_strategy_via_constructor).data
@@ -759,8 +763,12 @@ class DBSystem(object):
                   # get all databases from each db home
                   self.databases += db_client.list_databases(c.id, db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
                   # get all patch history entries
-                  self.db_home_patch_history += db_client.list_db_home_patch_history_entries(db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
-               
+                  list_db_home = []
+                  list_db_home = db_client.list_db_home_patch_history_entries(db_home_id=db_home.id, retry_strategy=retry_strategy_via_constructor).data
+                                    
+                  if list_db_home:
+                        self.db_home_patch_history.update({db_home.id: list_db_home})
+                                   
                # for db in databases:
                #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
                
@@ -792,7 +800,11 @@ class DBSystem(object):
          #logger.debug(self.autonomous_cdb)
          #logger.debug(" --- List of Autonomous DB is --- ")
          #logger.debug(self.autonomous_db)
-         #    
+         #logger.info(" --- List of DB SYSTEM PATCH is --- ")
+         #logger.info(self.db_system_patch_history)
+         #logger.info(" --- List of DB HOME PATCH is --- ")
+         #logger.info(self.db_home_patch_history)
+         
          logger.info("DB Systems - DONE.")
       except oci.exceptions.ServiceError as err:
          if err.status == 304:
@@ -876,23 +888,27 @@ class DBSystem(object):
          write_file( data, 'autonomous_db' )
          
          # DB Home Patch History
-         data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
+         data = 'db_home_id, action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
 
-         for db_home_patch in self.db_home_patch_history:
-            db_home_lifecycle_details = str(db_home_patch.lifecycle_details).replace(',', ' -')
-            data += '\n'
-            data += f'{db_home_patch.action}, {db_home_patch.id}, {db_home_lifecycle_details}, {db_home_patch.lifecycle_state}, {db_home_patch.patch_id}, {db_home_patch.time_ended}, {db_home_patch.time_started}, {report_no}'
+         for key, value in self.db_home_patch_history.items():
+            db_home_id = key
+            for db_home_patch in value:
+               db_home_lifecycle_details = str(db_home_patch.lifecycle_details).replace(',', ' -')
+               data += '\n'
+               data += f'{db_home_id}, {db_home_patch.action}, {db_home_patch.id}, {db_home_lifecycle_details}, {db_home_patch.lifecycle_state}, {db_home_patch.patch_id}, {db_home_patch.time_ended}, {db_home_patch.time_started}, {report_no}'
 
          write_file( data, 'db_home_patch_history' )
          
          # DB System Patch History
-         data = 'action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
+         data = 'db_system_id, action, id, lifecycle_details, lifecycle_state, patch_id, time_ended, time_started, report_no'
 
-         for db_sys_patch in self.db_system_patch_history:
-            db_sys_lifecycle_details = str(db_sys_patch.lifecycle_details).replace(',', ' -')
-            data += '\n'
-            data += f'{db_sys_patch.action}, {db_sys_patch.id}, {db_sys_lifecycle_details}, {db_sys_patch.lifecycle_state}, {db_sys_patch.patch_id}, {db_sys_patch.time_ended}, {db_sys_patch.time_started}, {report_no}'
-
+         for key, value in self.db_system_patch_history.items():
+            db_system_id = key
+            for db_sys_patch in value:
+               db_sys_lifecycle_details = str(db_sys_patch.lifecycle_details).replace(',', ' -')
+               data += '\n'
+               data += f'{db_system_id}, {db_sys_patch.action}, {db_sys_patch.id}, {db_sys_lifecycle_details}, {db_sys_patch.lifecycle_state}, {db_sys_patch.patch_id}, {db_sys_patch.time_ended}, {db_sys_patch.time_started}, {report_no}'
+     
          write_file( data, 'db_sys_patch_history' )
          
             
