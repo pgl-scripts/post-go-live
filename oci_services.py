@@ -173,24 +173,24 @@ class OCIService(object):
          logger.info("Region is: ")
          logger.info(self.signer.region)
       
-         #limit = Limit( self.config, tenancy, self.signer )
-         #compute = Compute( self.config, tenancy, self.signer)
-         #block_storage = BlockStorage(self.config, tenancy, self.signer)    
+         limit = Limit( self.config, tenancy, self.signer )
+         compute = Compute( self.config, tenancy, self.signer)
+         block_storage = BlockStorage(self.config, tenancy, self.signer)    
          db_system = DBSystem( self.config, tenancy, self.signer )
-         #monitoring = Monitoring( self.config, tenancy, self.signer )  
-         #images = Images( self.config, tenancy, self.signer)
+         monitoring = Monitoring( self.config, tenancy, self.signer )  
+         images = Images( self.config, tenancy, self.signer)
       
       logger.info("Data extraction finished.")
       
       # Create threads for "create_csv" methods 
       tenancy.create_csv()
       announcement.create_csv(self.config)
-      #limit.create_csv(self.config)
-      #compute.create_csv()
-      #block_storage.create_csv()
+      limit.create_csv(self.config)
+      compute.create_csv()
+      block_storage.create_csv()
       db_system.create_csv(self.config)
-      #monitoring.create_csv(self.config)
-      #images.create_csv()
+      monitoring.create_csv(self.config)
+      images.create_csv()
             
       logger.info("Data upload to Object Storage finished.")
       logger.info("### END ###")
@@ -417,7 +417,7 @@ class Limit(object):
                         'used': "",
                         'available': "",
                         'region_name': str(signer.region)
-               }
+                  }
 
                # if not limit, continue, don't calculate limit = 0
                if limit.value == 0:
