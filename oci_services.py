@@ -445,8 +445,7 @@ class Limit(object):
                   elif err.status == 429:
                      print_error("There were way too many API Requests made...", err)
                   elif err.status == 404:
-                     # ignore this error in here - authentication problem in here
-                     continue
+                     print_error("Insuficient permissions...", err)
                   else:
                      print_error("There was an error...", err)
                except Exception as err:
