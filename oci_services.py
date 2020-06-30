@@ -559,8 +559,6 @@ class Compute(object):
          # loop over all compartments
          for c in tenancy.get_compartments():
             try:
-               # get all dedicated hosts
-               self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=retry_strategy_via_constructor).data
                # get all instances
                self.instances += compute_client.list_instances(c.id, retry_strategy=retry_strategy_via_constructor).data
                # get all volume attachments
@@ -572,6 +570,18 @@ class Compute(object):
                   # get all boot volume attachments
                   self.bv_attachments += compute_client.list_boot_volume_attachments( ad.name, c.id, retry_strategy=retry_strategy_via_constructor ).data
                   
+               try:
+                  # get all dedicated hosts
+                  self.dedicated_hosts += compute_client.list_dedicated_vm_hosts(c.id, retry_strategy=retry_strategy_via_constructor).data
+               except oci.exceptions.ServiceError as err:
+                  if err.status == 304:
+                     logger.warning("Redirecting to a cached resource...")
+                  elif err.status == 429:
+                     print_error("There were way too many API Requests made...", err)
+                  else:
+                     print_error("There was an error...", err)
+               except Exception as err:
+                  print_error("Error while getting COMPUTE info...", err)
             
             except oci.exceptions.ServiceError as err:
                if err.status == 304:
@@ -585,8 +595,8 @@ class Compute(object):
                      
          #logger.debug(" --- List of Dedicated Hosts is --- ")
          #logger.debug(self.dedicated_hosts)
-         #logger.debug(" --- List of Instances is --- ")
-         #logger.debug(self.instances)
+         logger.info(" --- List of Instances is --- ")
+         logger.info(self.instances)
          #logger.debug(" --- List of Volume Attachments is --- ")
          #logger.debug(self.vol_attachments)
          #logger.debug(" --- List of Boot Volume Attachments is --- ")
@@ -770,13 +780,22 @@ class DBSystem(object):
                                    
                # for db in databases:
                #    self.dg_associations += db_client.list_data_guard_associations(db.id).data             
-               
-               # get all autonomous exadata infra
-               self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=retry_strategy_via_constructor).data
-               # get all autonomous container dbs
-               self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
                # get all autonomous dbs
                self.autonomous_db += db_client.list_autonomous_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
+               try:
+                  # get all autonomous exadata infra
+                  self.autonomous_exadata += db_client.list_autonomous_exadata_infrastructures(c.id, retry_strategy=retry_strategy_via_constructor).data
+                  # get all autonomous container dbs
+                  self.autonomous_cdb += db_client.list_autonomous_container_databases(c.id, retry_strategy=retry_strategy_via_constructor).data
+               except oci.exceptions.ServiceError as err:
+                  if err.status == 304:
+                     logger.warning("Redirecting to a cached resource...")
+                  elif err.status == 429:
+                     print_error("There were way too many API Requests made...", err)
+                  else:
+                     print_error("There was an error...", err)
+               except Exception as err:
+                  print_error("Error while getting DB SYSTEMS info...", err)
             except oci.exceptions.ServiceError as err:
                if err.status == 304:
                   logger.warning("Redirecting to a cached resource...")
