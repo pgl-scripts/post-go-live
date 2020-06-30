@@ -595,8 +595,8 @@ class Compute(object):
                      
          #logger.debug(" --- List of Dedicated Hosts is --- ")
          #logger.debug(self.dedicated_hosts)
-         logger.info(" --- List of Instances is --- ")
-         logger.info(self.instances)
+         #logger.debug(" --- List of Instances is --- ")
+         #logger.debug(self.instances)
          #logger.debug(" --- List of Volume Attachments is --- ")
          #logger.debug(self.vol_attachments)
          #logger.debug(" --- List of Boot Volume Attachments is --- ")
