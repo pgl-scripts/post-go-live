@@ -442,14 +442,19 @@ class Limit(object):
                except oci.exceptions.ServiceError as err:
                   if err.status == 304:
                      logger.warning("Redirecting to a cached resource...")
+                     self.limit_summary.append(val)
                   elif err.status == 429:
                      print_error("There were way too many API Requests made...", err)
+                     self.limit_summary.append(val)
                   elif err.status == 404:
                      print_error("Insuficient permissions...", err)
+                     self.limit_summary.append(val)
                   else:
                      print_error("There was an error...", err)
+                     self.limit_summary.append(val)
                except Exception as err:
                   print_error("Error while getting RESOURCE AVAILABILITY info...", err)
+                  self.limit_summary.append(val)
 
                self.limit_summary.append(val)
                   
