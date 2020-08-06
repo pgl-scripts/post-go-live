@@ -419,44 +419,44 @@ class Limit(object):
                         'region_name': str(signer.region)
                   }
 
-               # if not limit, continue, don't calculate limit = 0
-               if limit.value == 0:
-                  continue
+                  # if not limit, continue, don't calculate limit = 0
+                  if limit.value == 0:
+                     continue
 
-               try:
-                  # get usage per limit if available
-                  usage = []
-                  
-                  if limit.scope_type == "AD":
-                     usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
-                  else:
-                     usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
+                  try:
+                     # get usage per limit if available
+                     usage = []
                      
-                  # oci.limits.models.ResourceAvailability
-                  if usage.used:
-                     val['used'] = str(usage.used)
-                     
-                  if usage.available:
-                     val['available'] = str(usage.available)
-                     
-               except oci.exceptions.ServiceError as err:
-                  if err.status == 304:
-                     logger.warning("Redirecting to a cached resource...")
+                     if limit.scope_type == "AD":
+                        usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, availability_domain=limit.availability_domain, retry_strategy=retry_strategy_via_constructor).data
+                     else:
+                        usage = limits_client.get_resource_availability(service.name, limit.name, tenancy_id, retry_strategy=retry_strategy_via_constructor).data
+                        
+                     # oci.limits.models.ResourceAvailability
+                     if usage.used:
+                        val['used'] = str(usage.used)
+                        
+                     if usage.available:
+                        val['available'] = str(usage.available)
+                        
+                  except oci.exceptions.ServiceError as err:
+                     if err.status == 304:
+                        logger.warning("Redirecting to a cached resource...")
+                        self.limit_summary.append(val)
+                     elif err.status == 429:
+                        print_error("There were way too many API Requests made...", err)
+                        self.limit_summary.append(val)
+                     elif err.status == 404:
+                        print_error("Insuficient permissions...", err)
+                        self.limit_summary.append(val)
+                     else:
+                        print_error("There was an error...", err)
+                        self.limit_summary.append(val)
+                  except Exception as err:
+                     print_error("Error while getting RESOURCE AVAILABILITY info...", err)
                      self.limit_summary.append(val)
-                  elif err.status == 429:
-                     print_error("There were way too many API Requests made...", err)
-                     self.limit_summary.append(val)
-                  elif err.status == 404:
-                     print_error("Insuficient permissions...", err)
-                     self.limit_summary.append(val)
-                  else:
-                     print_error("There was an error...", err)
-                     self.limit_summary.append(val)
-               except Exception as err:
-                  print_error("Error while getting RESOURCE AVAILABILITY info...", err)
+
                   self.limit_summary.append(val)
-
-               self.limit_summary.append(val)
                   
             
          #logger.debug(" --- List of Limits is --- ")
